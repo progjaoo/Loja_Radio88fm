@@ -1,0 +1,31 @@
+modules = ["nodejs-24", "python-base-3.13", "postgresql-16"]
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
+
+[workflows]
+runButton = "Project"
+
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
+
+[nix]
+channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+STORE_EMAIL_FROM = "online-store@resend.grupogtf.com.br"
+R2_BUCKET_NAME = "radio88-store"
+R2_PUBLIC_URL = "https://pub-266617e2b10a470896c0eee1d19bf77a.r2.dev"
+R2_S3_ENDPOINT = "https://e0b3d289d013b73f58b532cbf178de58.r2.cloudflarestorage.com/radio88-store"

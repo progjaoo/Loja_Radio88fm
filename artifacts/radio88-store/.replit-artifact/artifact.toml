@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Loja Rádio 88 FM"
+description = "Loja virtual da Rádio 88 FM para clientes comprarem produtos, acompanharem pedidos e gerenciarem seus dados; inclui catálogo e painel operacional para equipe e administração."
+version = "1.0.0"
+id = "artifacts/radio88-store"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20439
+
+[services.development]
+run = "pnpm --filter @workspace/radio88-store run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/radio88-store", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/radio88-store/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20439"
+BASE_PATH = "/"

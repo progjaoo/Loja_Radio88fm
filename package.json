@@ -1,0 +1,29 @@
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "env:local": "node ./scripts/prepare-local-env.mjs",
+    "env:sync-clerk": "node ./scripts/sync-clerk-env.mjs",
+    "db:local:up": "docker compose up -d postgres",
+    "db:local:bootstrap": "pnpm --filter @workspace/db run bootstrap-local",
+    "db:local:down": "docker compose stop postgres",
+    "dev:api": "pnpm --filter @workspace/api-server run dev",
+    "dev:store": "pnpm --filter @workspace/radio88-store run dev",
+    "docker:dev": "docker compose up --build -d api frontend",
+    "docker:dev:logs": "docker compose logs -f api frontend",
+    "docker:dev:stop": "docker compose stop api frontend"
+  },
+  "private": true,
+  "dependencies": {
+    "@replit/connectors-sdk": "^0.4.3"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "typescript": "~5.9.3"
+  }
+}
