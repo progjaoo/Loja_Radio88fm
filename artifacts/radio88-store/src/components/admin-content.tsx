@@ -9,7 +9,9 @@ import { VideoUploadField } from '@/components/video-upload';
 import { HomepageBannerPreview } from '@/components/catalog-home';
 import { useCan } from '@/components/admin-permissions';
 import { HomepageLayoutEditor } from '@/components/homepage-layout-editor';
+import { useConfirmation } from '@/components/ui/confirmation-provider';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const errText = userFacingError;
 const isHttp = (v: string) => {
@@ -52,6 +54,7 @@ function BannerEditor() {
   const qc = useQueryClient();
   const save = useUpdateHomepageBanner();
   const canManage = useCan('content:manage');
+  const confirmAction = useConfirmation();
   const [form, setForm] = useState<BannerForm | null>(null);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [showErrors, setShowErrors] = useState(false);
@@ -67,11 +70,16 @@ function BannerEditor() {
   const disabled = !canManage || save.isPending;
   const change = (next: BannerForm) => { setForm(next); setFeedback(null); };
   const patchSlide = (id: string, patch: Partial<HomepageBannerSlide>) => change({ ...form, slides: form.slides.map(slide => slide.id === id ? { ...slide, ...patch } : slide) });
-  const loadDemo = () => {
-    if (form.slides.length && dirty && !window.confirm('Substituir o rascunho atual pelos conteúdos de demonstração?')) return;
+  const loadDemo = async () => {
+    if (form.slides.length && dirty && !await confirmAction({
+      title: 'Substituir o rascunho atual?',
+      description: 'Os slides de demonstração vão substituir as alterações ainda não salvas. A demonstração será carregada apenas como rascunho.',
+      confirmLabel: 'Substituir rascunho',
+      destructive: true,
+    })) return;
     change({ enabled: false, slides: demoSlides() });
     setShowErrors(false);
-    setFeedback({ ok: true, text: 'Conteúdo de demonstração carregado apenas no rascunho. Salvar não o publica enquanto a apresentação estiver desativada.' });
+    toast.success('Demonstração carregada no rascunho. Salve para aplicar as alterações.');
   };
   const moveSlide = (index: number, direction: number) => {
     const slides = [...form.slides];
@@ -107,9 +115,10 @@ function BannerEditor() {
         qc.setQueryData(getGetHomepageBannerQueryKey(), saved);
         setForm(toBannerForm(saved));
         setShowErrors(false);
-        setFeedback({ ok: true, text: 'Destaques salvos. A vitrine já está atualizada.' });
+        setFeedback(null);
+        toast.success('Destaques salvos. A vitrine já está atualizada.');
       },
-      onError: error => setFeedback({ ok: false, text: errText(error) }),
+      onError: error => { setFeedback(null); toast.error(errText(error)); },
     });
   };
   const fieldError = (id: string, field: string) => showErrors ? errors[`${id}.${field}`] : undefined;
@@ -143,7 +152,17 @@ function BannerEditor() {
                 <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="accent-black" disabled={disabled} checked={slide.enabled} onChange={event => patchSlide(slide.id, { enabled: event.target.checked })} data-testid={`checkbox-slide-enabled-${slide.id}`} />Ativo</label>
                 <button type="button" className="grid h-9 w-9 place-items-center rounded-full border border-border hover:bg-muted disabled:opacity-40" disabled={disabled || index === 0} onClick={() => moveSlide(index, -1)} aria-label={`Mover destaque ${index + 1} para cima`} data-testid={`button-slide-up-${slide.id}`}><ArrowUp size={15} /></button>
                 <button type="button" className="grid h-9 w-9 place-items-center rounded-full border border-border hover:bg-muted disabled:opacity-40" disabled={disabled || index === form.slides.length - 1} onClick={() => moveSlide(index, 1)} aria-label={`Mover destaque ${index + 1} para baixo`} data-testid={`button-slide-down-${slide.id}`}><ArrowDown size={15} /></button>
-                <button type="button" className="grid h-9 w-9 place-items-center rounded-full border border-border text-destructive hover:bg-destructive/5 disabled:opacity-40" disabled={disabled} onClick={() => { if (window.confirm(`Remover o destaque ${index + 1}?`)) change({ ...form, slides: form.slides.filter(item => item.id !== slide.id) }); }} aria-label={`Remover destaque ${index + 1}`} data-testid={`button-slide-remove-${slide.id}`}><Trash2 size={15} /></button>
+                <button type="button" className="grid h-9 w-9 place-items-center rounded-full border border-border text-destructive hover:bg-destructive/5 disabled:opacity-40" disabled={disabled} onClick={async () => {
+                  const confirmed = await confirmAction({
+                    title: `Remover destaque ${index + 1}?`,
+                    description: 'O destaque será removido do rascunho. A alteração só aparece na loja depois de salvar.',
+                    confirmLabel: 'Remover destaque',
+                    destructive: true,
+                  });
+                  if (!confirmed) return;
+                  change({ ...form, slides: form.slides.filter(item => item.id !== slide.id) });
+                  toast.success('Destaque removido do rascunho. Salve para publicar.');
+                }} aria-label={`Remover destaque ${index + 1}`} data-testid={`button-slide-remove-${slide.id}`}><Trash2 size={15} /></button>
               </div>
             </header>
             <div className="grid gap-4 p-4 md:p-5">

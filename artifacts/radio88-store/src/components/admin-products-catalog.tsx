@@ -24,6 +24,8 @@ import { fromCents, toCents } from "@/lib/currency";
 import { money } from "@/lib/format";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useCan } from "@/components/admin-permissions";
+import { useConfirmation } from "@/components/ui/confirmation-provider";
+import { toast } from "sonner";
 
 type Tab = "products" | "categories" | "lines";
 type VariantDraft = {
@@ -270,6 +272,7 @@ function getProductFormValues(product?: Product): ProductFormValues {
 
 export function AdminProductsCatalog() {
   const qc = useQueryClient();
+  const confirmAction = useConfirmation();
   const [, setLocation] = useLocation();
   const canCreateProduct = useCan("products:create");
   const canUpdateProduct = useCan("products:update");
@@ -425,9 +428,17 @@ export function AdminProductsCatalog() {
     create.mutate({ data: input }, { onSuccess: () => { refresh(); setFeedback({ text: "Cópia criada como inativa, sem alterar o estoque.", kind: "success" }); }, onError: e => setFeedback({ text: errorMessage(e), kind: "error" }) });
   };
   const bulkStatus = (status: ProductStatus) => bulk.mutate({ data: { productIds: selected, status } }, { onSuccess: r => { refresh(); setSelected([]); setFeedback({ text: `${r.updatedCount} produtos atualizados.`, kind: "success" }); }, onError: e => setFeedback({ text: errorMessage(e), kind: "error" }) });
-  const toggleProduct = (p: Product) => {
+  const toggleProduct = async (p: Product) => {
     if (!p.active) update.mutate({ productId: p.id, data: { active: true, status: "active" } }, { onSuccess: () => { refresh(); setFeedback({ text: "Produto reativado.", kind: "success" }); }, onError: e => setFeedback({ text: errorMessage(e), kind: "error" }) });
-    else if (window.confirm(`Arquivar “${p.name}”? O histórico de pedidos será preservado.`)) archive.mutate({ productId: p.id }, { onSuccess: () => { refresh(); setFeedback({ text: "Produto arquivado.", kind: "success" }); }, onError: e => setFeedback({ text: errorMessage(e), kind: "error" }) });
+    else {
+      const confirmed = await confirmAction({
+        title: 'Arquivar produto?',
+        description: `“${p.name}” deixará de aparecer na loja. O histórico de pedidos será preservado.`,
+        confirmLabel: 'Arquivar produto',
+        destructive: true,
+      });
+      if (confirmed) archive.mutate({ productId: p.id }, { onSuccess: () => { refresh(); toast.success("Produto arquivado."); }, onError: e => toast.error(errorMessage(e)) });
+    }
   };
   const categorySave = (values: CategoryFormValues) => {
     const data = { name: values.name, description: values.description || null, iconName: values.iconName as CategoryIcon };
