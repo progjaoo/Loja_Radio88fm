@@ -1,17 +1,23 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useSearch } from 'wouter';
 import { AccessibilityPreferencesButton } from '@/components/accessibility-preferences-button';
 import { useAuth, useClerk, useUser } from '@clerk/react';
-import { useGetAdminCapabilities, useGetCart, useListCategories, getGetAdminCapabilitiesQueryKey, getGetCartQueryKey } from '@workspace/api-client-react';
-import type { Category } from '@workspace/api-client-react';
-import { Activity, ClipboardList, Heart, LogIn, LogOut, MapPin, Search, ShoppingBag, UserRound, X } from 'lucide-react';
+import { useGetAdminCapabilities, useGetCart, useListCategories, useListProducts, getGetAdminCapabilitiesQueryKey, getGetCartQueryKey, getListProductsQueryKey } from '@workspace/api-client-react';
+import { Activity, ClipboardList, Heart, LogOut, MapPin, Menu, Search, ShoppingBag, UserRound, X } from 'lucide-react';
 import { FaFacebookF, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
 import { CategoryIconView } from '@/components/category-icon';
 import { CookiePreferences, CookiePreferencesReopen } from '@/components/shop-support';
 import { useGuestCart } from '@/lib/guest-cart';
 import { STORE_CONTACT } from '@/lib/legal-documents';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+const StoreSearchContext = createContext(false);
+
+export function useStoreSearchOverlayOpen() {
+  return useContext(StoreSearchContext);
+}
 
 export function Logo() {
   return <Link href="/" className="inline-flex items-baseline text-[22px] font-medium tracking-[-0.06em]" data-testid="link-home" aria-label="Rádio 88 FM, página inicial">rádio 88<span className="text-[#bd382f]">.</span></Link>;
@@ -23,25 +29,55 @@ export function SearchBar({ onClose }: { onClose?: () => void }) {
   const params = new URLSearchParams(search);
   const current = params.get('q') ?? '';
   const [value, setValue] = useState(current);
+  const [debounced, setDebounced] = useState('');
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => { setValue(current); }, [current]);
   useEffect(() => { input.current?.focus(); }, []);
+  useEffect(() => {
+    const term = value.trim();
+    if (term.length < 2) { setDebounced(''); return; }
+    const timer = window.setTimeout(() => setDebounced(term), 275);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+  const suggestionParams = debounced ? { search: debounced } : undefined;
+  const suggestions = useListProducts(suggestionParams, {
+    query: { enabled: debounced.length >= 2, staleTime: 20_000, queryKey: getListProductsQueryKey(suggestionParams) },
+  });
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const next = new URLSearchParams();
-    if (value.trim()) next.set('q', value.trim());
-    const cat = params.get('categoryId'); if (cat) next.set('categoryId', cat);
-    const s = next.toString();
-    go(s ? `/?${s}` : '/');
+    const term = value.trim();
+    const currentParams = new URLSearchParams(search);
+    const nextParams = new URLSearchParams();
+    for (const key of ['categoryId', 'featured', 'minPrice', 'maxPrice', 'availability', 'sort', 'pieceType', 'sizes', 'filters']) {
+      const value = currentParams.get(key);
+      if (value) nextParams.set(key, value);
+    }
+    nextParams.set('view', 'catalog');
+    if (term) nextParams.set('q', term);
+    go(`/?${nextParams.toString()}`);
     onClose?.();
   };
-  const clear = () => { setValue(''); const next = new URLSearchParams(search); next.delete('q'); const s = next.toString(); go(s ? `/?${s}` : '/'); };
+  const clear = () => { setValue(''); input.current?.focus(); };
   return (
-    <form role="search" onSubmit={submit} className="store-search-form">
-      <button type="submit" aria-label="Pesquisar produtos" data-testid="button-search" className="store-search-submit"><Search size={20} aria-hidden="true" /></button>
-      <input ref={input} type="search" aria-label="Buscar produtos" data-testid="input-search" placeholder="Buscar produtos" value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') onClose?.(); }} />
-      {(value || current) && <button type="button" onClick={clear} aria-label="Limpar busca" data-testid="button-clear-search" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground"><X size={16} /></button>}
-    </form>
+    <div className="store-search-wrap">
+      <form role="search" onSubmit={submit} className="store-search-form">
+        <button type="submit" aria-label="Pesquisar produtos" data-testid="button-search" className="store-search-submit"><Search size={20} aria-hidden="true" /></button>
+        <input ref={input} type="search" aria-label="Buscar produtos" data-testid="input-search" placeholder="Buscar" value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') onClose?.(); }} />
+        {value && <button type="button" onClick={clear} aria-label="Limpar campo de busca" title="Limpar campo" data-testid="button-clear-search" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground"><X size={16} /></button>}
+      </form>
+      {value.trim().length < 2 && <div className="store-search-suggestions" aria-label="Sugestões de busca">
+        <span>Explore a loja</span>
+        <Link href="/?view=catalog" onClick={onClose}>Toda a vitrine</Link>
+      </div>}
+      {debounced.length >= 2 && <div className="store-search-suggestions" aria-live="polite">
+        <span>{suggestions.isFetching ? 'Buscando produtos…' : suggestions.isError ? 'Sugestões indisponíveis' : suggestions.data?.length ? 'Produtos' : 'Nenhum produto encontrado'}</span>
+        {suggestions.data?.slice(0, 6).map(product => <Link key={product.id} href={`/product/${product.id}`} onClick={onClose} className="store-search-result">
+          <span>{product.name}</span><small>{product.categoryName ?? 'Rádio 88 FM'}</small>
+        </Link>)}
+        {suggestions.isError && <small className="store-search-message">Digite Enter para abrir a busca completa.</small>}
+        <button type="button" onClick={submit} className="store-search-all">Ver todos os resultados <span aria-hidden="true">→</span></button>
+      </div>}
+    </div>
   );
 }
 
@@ -114,67 +150,122 @@ function CartLink() {
   );
 }
 
-function CategoryLinks({ categories, active, onNavigate, vertical = false }: { categories: Category[]; active: string; onNavigate?: () => void; vertical?: boolean }) {
-  const cls = (on: boolean) => `flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm transition-colors ${on ? 'bg-foreground text-background' : 'hover:bg-muted'} ${vertical ? 'w-full rounded-xl' : ''}`;
-  return <>
-    <Link href="/" onClick={onNavigate} aria-current={!active ? 'page' : undefined} className={cls(false)} data-testid="nav-all">Vitrine</Link>
-    {categories.map(c => <Link key={c.id} href={`/?categoryId=${encodeURIComponent(c.id)}`} onClick={onNavigate} aria-current={active === c.id ? 'page' : undefined} className={cls(active === c.id)} data-testid={`nav-category-${c.id}`}><CategoryIconView category={c} size={16} />{c.name}</Link>)}
-  </>;
-}
-
-export function Header() {
+export function Header({ searchOpen, setSearchOpen }: { searchOpen: boolean; setSearchOpen: (open: boolean) => void }) {
   const { isSignedIn } = useAuth();
   const guestCart = useGuestCart();
-  const [searchOpen, setSearchOpen] = useState(false);
+  const categories = useListCategories();
+  const [path] = useLocation();
+  const searchParams = new URLSearchParams(useSearch());
+  const activeCategory = path === '/' ? searchParams.get('categoryId') ?? '' : '';
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const searchTrigger = useRef<HTMLButtonElement>(null);
-  const wasSearchOpen = useRef(false);
   const closeSearch = () => setSearchOpen(false);
-  useEffect(() => {
-    if (!searchOpen && wasSearchOpen.current) searchTrigger.current?.focus();
-    wasSearchOpen.current = searchOpen;
-  }, [searchOpen]);
+  const purchaseFlow = path === '/cart' || path === '/checkout';
+  const adminFlow = path.startsWith('/admin');
+  useEffect(() => { setMobileMenuOpen(false); setSearchOpen(false); }, [path]);
   return (
-    <header className="store-header sticky top-0 z-40">
-      <div className={`store-header-inner ${searchOpen ? 'is-search-open' : ''}`}>
-        {searchOpen ? <>
-          <div className="store-header-search"><SearchBar onClose={closeSearch} /></div>
-          <button type="button" onClick={closeSearch} className="store-search-cancel" data-testid="button-close-search">Cancelar</button>
-        </> : <>
+    <>
+      {!purchaseFlow && !adminFlow && <div className="store-utility-bar"><Link href="/orders">Pedidos</Link><Link href="/help">Ajuda</Link><Link href={isSignedIn ? '/account' : '/sign-in'}>Conta</Link></div>}
+      <header className={`store-header sticky top-0 z-40${purchaseFlow ? ' is-purchase-flow' : ''}${adminFlow ? ' is-admin-flow' : ''}`}>
+        <div className="store-header-inner">
           <Logo />
+          {!purchaseFlow && !adminFlow && <nav className="store-primary-nav" aria-label="Navegação principal">
+            <Link href="/?view=catalog" data-testid="nav-all" aria-current={path === '/' && searchParams.get('view') === 'catalog' ? 'page' : undefined}>Toda a loja</Link>
+            {categories.data?.slice(0, 3).map(category => <Link key={category.id} href={`/?categoryId=${encodeURIComponent(category.id)}`} data-testid={`nav-category-${category.id}`} aria-current={activeCategory === category.id ? 'page' : undefined}>{category.name}</Link>)}
+          </nav>}
           <nav className="store-actions" aria-label="Ações da loja">
-            <button ref={searchTrigger} type="button" onClick={() => setSearchOpen(true)} className="store-search-trigger" aria-label="Buscar produtos" data-testid="button-open-search"><Search size={21} strokeWidth={1.8} aria-hidden="true" /><span>Buscar</span></button>
-            <Link href={isSignedIn ? '/favorites' : '/sign-in'} aria-label="Favoritos" title="Favoritos" data-testid="link-favorites" className="store-action"><Heart size={19} strokeWidth={1.7} /><span>Favoritos</span></Link>
+            {!purchaseFlow && <>
+              <button ref={searchTrigger} type="button" onClick={() => setSearchOpen(true)} className="store-search-trigger" aria-label="Buscar produtos" aria-haspopup="dialog" aria-expanded={searchOpen} data-testid="button-open-search"><Search size={21} strokeWidth={1.8} aria-hidden="true" /><span>Buscar</span></button>
+              <Link href={isSignedIn ? '/favorites' : '/sign-in'} aria-label="Favoritos" title="Favoritos" data-testid="link-favorites" className="store-action"><Heart size={19} strokeWidth={1.7} /><span>Favoritos</span></Link>
+            </>}
             <CartAction guestCart={guestCart.lines.reduce((sum, line) => sum + line.quantity, 0)} signedIn={!!isSignedIn} />
-            <AccountMenu />
+            {!purchaseFlow && <AccountMenu />}
+            {!purchaseFlow && !adminFlow && <button type="button" className="store-mobile-menu-trigger" aria-label="Abrir navegação da loja" onClick={() => setMobileMenuOpen(true)} data-testid="button-open-store-menu"><Menu size={21} /></button>}
+            {purchaseFlow && <Link href="/contact" className="store-purchase-help">Precisa de ajuda?</Link>}
           </nav>
-        </>}
-      </div>
-    </header>
+        </div>
+      </header>
+      <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <DialogContent
+          className="store-search-dialog"
+          overlayClassName="store-search-overlay"
+          hideCloseButton
+          onCloseAutoFocus={event => { event.preventDefault(); searchTrigger.current?.focus(); }}
+          aria-describedby="store-search-description"
+          data-testid="dialog-global-search"
+        >
+          <DialogTitle className="sr-only">Buscar produtos</DialogTitle>
+          <DialogDescription id="store-search-description" className="sr-only">Digite para ver sugestões de produtos ou envie a busca completa.</DialogDescription>
+          <div className="store-search-dialog-row">
+            <div className="store-header-search"><SearchBar onClose={closeSearch} /></div>
+            <DialogClose asChild><button type="button" className="store-search-cancel" data-testid="button-close-search">Cancelar</button></DialogClose>
+          </div>
+        </DialogContent>
+      </Dialog>
+    <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+      <SheetContent side="left" className="store-mobile-menu" aria-describedby="store-mobile-menu-description">
+        <SheetHeader><SheetTitle>Loja Rádio 88</SheetTitle><SheetDescription id="store-mobile-menu-description">Acesse categorias, sua conta e o atendimento.</SheetDescription></SheetHeader>
+        <nav className="store-mobile-menu-links" aria-label="Navegação da loja">
+          <Link href="/?view=catalog" onClick={() => setMobileMenuOpen(false)}>Toda a loja</Link>
+          {categories.data?.map(category => <Link key={category.id} href={`/?categoryId=${encodeURIComponent(category.id)}`} onClick={() => setMobileMenuOpen(false)}>{category.name}</Link>)}
+          <Link href={isSignedIn ? '/favorites' : '/sign-in'} onClick={() => setMobileMenuOpen(false)}>Favoritos</Link>
+          <Link href="/orders" onClick={() => setMobileMenuOpen(false)}>Meus pedidos</Link>
+          <Link href="/account" onClick={() => setMobileMenuOpen(false)}>Minha conta</Link>
+            <Link href="/help" onClick={() => setMobileMenuOpen(false)}>Ajuda e atendimento</Link>
+        </nav>
+      </SheetContent>
+    </Sheet>
+    </>
   );
 }
 
 function CartAction({ guestCart, signedIn }: { guestCart: number; signedIn: boolean }) {
   const cart = useGetCart({ query: { enabled: signedIn, queryKey: getGetCartQueryKey() } });
   const count = signedIn ? (cart.data?.lines ?? []).reduce((total, line) => total + line.quantity, 0) : guestCart;
-  return <Link href="/cart" aria-label={count ? `Sacola, ${count} itens` : 'Sacola'} title="Sacola" data-testid="link-cart" className="store-action store-cart-action"><ShoppingBag size={19} strokeWidth={1.7} /><span>Sacola</span>{count > 0 && <span data-testid="badge-cart-count" className="store-badge">{count}</span>}</Link>;
+  return <Link href="/cart" aria-label={count ? `Sacola, ${count} ${count === 1 ? 'item' : 'itens'}` : 'Sacola'} title="Sacola" data-testid="link-cart" className="store-action store-cart-action"><ShoppingBag size={19} strokeWidth={1.7} /><span>Sacola</span>{count > 0 && <span data-testid="badge-cart-count" className="store-badge">{count}</span>}</Link>;
+}
+
+function AccountSectionNav({ path }: { path: string }) {
+  const items = [
+    { href: '/account', label: 'Minha conta', active: path === '/account' },
+    { href: '/orders', label: 'Pedidos', active: path.startsWith('/orders') },
+    { href: '/account/addresses', label: 'Endereços', active: path === '/account/addresses' },
+    { href: '/favorites', label: 'Favoritos', active: path === '/favorites' },
+  ];
+  return <nav className="account-area-nav" aria-label="Sua conta">
+    <span className="eyebrow">SUA CONTA</span>
+    {items.map(item => <Link key={item.href} href={item.href} aria-current={item.active ? 'page' : undefined}>{item.label}</Link>)}
+  </nav>;
 }
 
 export function Shell({ children }: { children: ReactNode }) {
   const categories = useListCategories();
   const [path] = useLocation();
   const search = useSearch();
-  const activeCategory = path === '/' ? new URLSearchParams(search).get('categoryId') ?? '' : '';
+  const purchaseFlow = path === '/cart' || path === '/checkout';
+  const adminFlow = path.startsWith('/admin');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const accountArea = path === '/account' || path === '/account/addresses' || path.startsWith('/orders') || path === '/favorites';
+  const [wideFooter, setWideFooter] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches);
   useEffect(() => {
     if (!window.location.hash) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [path, search]);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 768px)');
+    const update = () => setWideFooter(media.matches);
+    update(); media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   return (
-    <div className="min-h-[100dvh]">
-      <Header />
-      {!!categories.data?.length && <nav className="shell flex flex-wrap items-center justify-center gap-1.5 border-b border-border py-2" aria-label="Categorias">
-        <CategoryLinks categories={categories.data} active={activeCategory} />
-      </nav>}
-      {children}
-      <footer className="mt-16 bg-[#332f2d] text-white">
+    <StoreSearchContext.Provider value={searchOpen}>
+      <div className={`min-h-[100dvh] ${adminFlow ? 'store-admin-site' : 'store-public-site'}${purchaseFlow ? ' store-checkout-site' : ''}`}>
+      <Header searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
+      {accountArea ? <div className="shell account-area-layout">
+        <AccountSectionNav path={path} />
+        <div className="account-area-content">{children}</div>
+      </div> : children}
+      <footer className={`store-footer mt-16 bg-[#332f2d] text-white${purchaseFlow ? ' is-compact' : ''}`}>
+        {purchaseFlow ? <div className="store-purchase-footer shell"><Logo /><span>Compra acompanhada pela equipe da Rádio 88 FM.</span><Link href="/contact">Fale conosco</Link><Link href="/terms">Termos</Link><Link href="/privacy">Privacidade</Link><CookiePreferencesReopen /></div> : <>
         <div className="shell grid gap-10 py-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div><div className="text-[22px] font-medium tracking-[-0.06em]">rádio 88<span className="text-[#e18c73]">.</span></div><p className="mt-4 max-w-sm text-sm text-white/70">Produtos da estação, vendidos diretamente. Preço claro, pedido confirmado e atendimento de verdade.</p>
             <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-xs text-white/75" aria-label="Redes sociais">
@@ -184,17 +275,19 @@ export function Shell({ children }: { children: ReactNode }) {
               <a className="footer-social-link" href="https://www.tiktok.com/@radio88fm" target="_blank" rel="noopener noreferrer" aria-label="TikTok" data-testid="link-social-tiktok"><FaTiktok aria-hidden="true" size={14} /><span>TikTok</span></a>
             </div>
           </div>
-          <div><div className="mb-4 text-sm text-white/60">Categorias</div><div className="grid gap-3 text-sm">{categories.data?.length ? categories.data.map(c => <Link key={c.id} href={`/?categoryId=${encodeURIComponent(c.id)}`} className="flex items-center gap-2"><CategoryIconView category={c} size={15} />{c.name}</Link>) : <span className="text-white/50">Em breve</span>}</div></div>
-          <div><div className="mb-4 text-sm text-white/60">Atendimento</div><div className="grid gap-3 text-sm"><Link href="/contact" data-testid="link-footer-contact">Fale conosco</Link><a href={STORE_CONTACT.whatsappUrl} target="_blank" rel="noopener noreferrer" data-testid="link-footer-whatsapp">WhatsApp: {STORE_CONTACT.whatsappLabel}<span className="sr-only"> (abre em nova aba)</span></a><a href={`mailto:${STORE_CONTACT.email}`} className="break-all" data-testid="link-footer-email">{STORE_CONTACT.email}</a><span>Horário: {STORE_CONTACT.hours}</span><Link href="/orders">Meus pedidos</Link><Link href="/account">Minha conta</Link><Link href="/returns">Trocas e devoluções</Link></div></div>
-          <div><div className="mb-4 text-sm text-white/60">Transparência</div><div className="grid gap-3 text-sm"><Link href="/terms">Termos de uso</Link><Link href="/privacy">Privacidade (LGPD)</Link><Link href="/cookies">Política de cookies</Link><Link href="/returns">Trocas e devoluções</Link><CookiePreferencesReopen /></div></div>
+          <details className="store-footer-group" open={wideFooter}><summary>Categorias</summary><div className="grid gap-3 text-sm">{categories.data?.length ? categories.data.map(c => <Link key={c.id} href={`/?categoryId=${encodeURIComponent(c.id)}`} className="flex items-center gap-2"><CategoryIconView category={c} size={15} />{c.name}</Link>) : <span className="text-white/50">Em breve</span>}</div></details>
+          <details className="store-footer-group" open={wideFooter}><summary>Atendimento</summary><div className="grid gap-3 text-sm"><Link href="/help">Central de ajuda</Link><Link href="/contact" data-testid="link-footer-contact">Fale conosco</Link><a href={STORE_CONTACT.whatsappUrl} target="_blank" rel="noopener noreferrer" data-testid="link-footer-whatsapp">WhatsApp: {STORE_CONTACT.whatsappLabel}<span className="sr-only"> (abre em nova aba)</span></a><a href={`mailto:${STORE_CONTACT.email}`} className="break-all" data-testid="link-footer-email">{STORE_CONTACT.email}</a><span>Horário: {STORE_CONTACT.hours}</span><Link href="/orders">Meus pedidos</Link><Link href="/account">Minha conta</Link><Link href="/returns">Trocas e devoluções</Link></div></details>
+          <details className="store-footer-group" open={wideFooter}><summary>Transparência</summary><div className="grid gap-3 text-sm"><Link href="/terms">Termos de uso</Link><Link href="/privacy">Privacidade (LGPD)</Link><Link href="/cookies">Política de cookies</Link><Link href="/returns">Trocas e devoluções</Link><CookiePreferencesReopen /></div></details>
         </div>
          <div className="border-t border-white/10 py-4 text-center text-xs text-white/60">
            <p className="m-0">Rádio 88 FM · Comércio direto, com cuidado e transparência.</p>
             <p className="m-0 mt-1">© 2026 Rádio 88 FM. Todos os direitos reservados.</p>
            <AccessibilityPreferencesButton />
          </div>
+        </>}
       </footer>
       <CookiePreferences />
-    </div>
+      </div>
+    </StoreSearchContext.Provider>
   );
 }

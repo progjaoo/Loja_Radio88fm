@@ -69,3 +69,5 @@ Thumbs.db
 *.rtf
 *.tex
 !artifacts/radio88-store/public/robots.txt
+.vercel
+.env*

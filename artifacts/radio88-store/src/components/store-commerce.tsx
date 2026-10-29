@@ -11,9 +11,11 @@ import {
   useCreateCheckout, useCreateGuestCheckout, useGetProfile, useListAddresses, useAddCartLine, useGetProduct,
   getGetCartQueryKey, getListMyOrdersQueryKey, getGetProfileQueryKey, getListAddressesQueryKey, getQuoteShippingQueryKey,
   getGetProductQueryKey,
+  getListProductsQueryKey,
+  useListProducts,
 } from '@workspace/api-client-react';
 import type { Address, Cart, CartLine, GuestCheckoutInput, Order, ShippingOption } from '@workspace/api-client-react';
-import { ArrowRight, ChevronLeft, ChevronRight, MapPin, Maximize2, Minus, Plus, ShieldCheck, ShoppingBag, Trash2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, MapPin, Maximize2, Minus, Plus, ShieldCheck, ShoppingBag, Trash2 } from 'lucide-react';
 import { money } from '@/lib/format';
 import { formatBrazilPhone, phoneDigits } from '@/lib/phone-format';
 import { userFacingError } from '@/lib/user-facing-errors';
@@ -22,11 +24,12 @@ import { PostalLookupStatus } from '@/components/postal-lookup-status';
 import { ErrorState, Loading, Notice } from '@/components/feedback';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { effectiveVariantPrice, ProductImage } from '@/components/product-ui';
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { effectiveVariantPrice, ProductImage, ProductRail } from '@/components/product-ui';
 import { ProductShareDialog } from '@/components/product-share-dialog';
 import { FavoriteToggle } from '@/components/shop-support';
 import { TermsAcceptance } from '@/components/legal-document-dialog';
-import { addGuestProduct, clearGuestCart, removeGuestLine, updateGuestQuantity, useGuestCart } from '@/lib/guest-cart';
+import { addGuestProduct, clearGuestCart, readGuestCart, removeGuestLine, updateGuestQuantity, useGuestCart } from '@/lib/guest-cart';
 
 const digits = (value: string) => value.replace(/\D/g, '').slice(0, 8);
 const onlyNumbers = (value: string) => value.replace(/\D/g, '');
@@ -41,6 +44,18 @@ const pickupOption: ShippingOption = {
   estimatedDays: 0,
   description: 'Economize no frete e aproveite para visitar a Rádio 88 FM.',
 };
+
+function StoreProgress({ current }: { current: 1 | 2 | 3 }) {
+  const steps = ['Sacola', 'Entrega e revisão', 'Pedido registrado'];
+  return <nav className="store-progress" aria-label="Etapas do pedido">
+    <ol>{steps.map((label, index) => {
+      const step = index + 1;
+      return <li key={label} className={step === current ? 'is-current' : step < current ? 'is-complete' : ''} aria-current={step === current ? 'step' : undefined}>
+        <span className="store-progress-number" aria-hidden="true">{step < current ? '✓' : `0${step}`}</span><span>{label}</span>
+      </li>;
+    })}</ol>
+  </nav>;
+}
 
 function Lines({ cart, guest = false }: { cart: Cart; guest?: boolean }) {
   const update = useUpdateCartLine();
@@ -76,13 +91,14 @@ export function StoreCartPage() {
   const cart = isSignedIn ? accountCart.data : guestCart;
   const query = isSignedIn ? accountCart : null;
   return <main className="shell store-page">
-    <div className="store-page-head"><div><div className="eyebrow">RÁDIO 88 FM · SUA ESCOLHA</div><h1 className="display">Sua sacola</h1><p>{isSignedIn ? 'Sacola da sua conta.' : 'Sacola deste navegador, separada da sacola de qualquer conta.'}</p></div><span className="store-step">01 / 03</span></div>
+    <div className="store-page-head"><div><div className="eyebrow">RÁDIO 88 FM · SUA ESCOLHA</div><h1 className="display">Sua sacola</h1><p>{isSignedIn ? 'Sacola da sua conta.' : 'Sacola deste navegador, separada da sacola de qualquer conta.'}</p></div><StoreProgress current={1} /></div>
     {query?.isLoading ? <Loading label="Carregando sua sacola" /> : query?.isError ? <ErrorState retry={() => query.refetch()} /> : !cart ? <Loading /> : <div className="store-cart-layout">
       <section aria-label="Itens na sacola"><Lines cart={cart} guest={!isSignedIn} /></section>
       {!!cart.lines.length && <aside className="store-summary">
         <div className="eyebrow">RESUMO DO PEDIDO</div><div className="summary-row"><span>Subtotal</span><strong data-testid="text-cart-subtotal">{money(cart.subtotal)}</strong></div>
         <div className="store-trust-note"><ShieldCheck size={17} /><span>Compra direta da loja oficial. Frete e prazo confirmados antes de finalizar.</span></div>
         <Link href="/checkout" className="button w-full" data-testid="link-checkout">Continuar para entrega <ArrowRight size={16} /></Link>
+        <Link href="/contact" className="store-help-link" data-testid="link-cart-help">Precisa de ajuda com a sacola? Fale conosco</Link>
         {!isSignedIn && <p className="guest-cart-note">Checkout sem conta. Sua sacola permanece local e não será mesclada automaticamente com uma conta.</p>}
       </aside>}
     </div>}
@@ -94,6 +110,11 @@ export function StoreProductPage() {
   const productId = params?.productId ?? '';
   const { isSignedIn } = useAuth();
   const query = useGetProduct(productId, { query: { enabled: !!productId, queryKey: getGetProductQueryKey(productId) } });
+  const product = query.data;
+  const relatedParams = product?.categoryId ? { categoryId: product.categoryId } : undefined;
+  const recommendations = useListProducts(relatedParams, {
+    query: { enabled: !!product?.categoryId, staleTime: 30_000, queryKey: getListProductsQueryKey(relatedParams) },
+  });
   const add = useAddCartLine();
   const qc = useQueryClient();
   const [, navigate] = useLocation();
@@ -101,20 +122,32 @@ export function StoreProductPage() {
   const [imageUrl, setImageUrl] = useState('');
   const [selectionError, setSelectionError] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [bagSheetOpen, setBagSheetOpen] = useState(false);
+  const [addedLine, setAddedLine] = useState<CartLine | null>(null);
   const sizeGroupRef = useRef<HTMLFieldSetElement>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const [showStickyAdd, setShowStickyAdd] = useState(false);
   useEffect(() => {
     setVariantId('');
     setImageUrl('');
     setSelectionError(false);
     setLightboxOpen(false);
   }, [productId]);
-  const product = query.data;
   useEffect(() => {
     if (variantId && product && !product.variants.some(variant => variant.id === variantId && variant.stock > 0)) {
       setVariantId('');
       setSelectionError(false);
     }
   }, [product, variantId]);
+  useEffect(() => {
+    const button = addButtonRef.current;
+    if (!button || !window.matchMedia('(max-width: 760px)').matches) { setShowStickyAdd(false); return; }
+    const observer = new IntersectionObserver(([entry]) => {
+      setShowStickyAdd(!entry.isIntersecting && entry.boundingClientRect.top < 0);
+    }, { threshold: 0 });
+    observer.observe(button);
+    return () => observer.disconnect();
+  }, [productId, product]);
   if (query.isLoading) return <main className="shell store-page"><Loading label="Carregando produto" /></main>;
   if (query.isError || !product) return <main className="shell store-page"><ErrorState retry={() => query.refetch()} message="Este produto pode ter sido removido ou estar indisponível." /></main>;
   const galleryLayout = product.galleryLayout === 'portrait' ? 'portrait' : 'square';
@@ -137,14 +170,27 @@ export function StoreProductPage() {
       return;
     }
     if (!isSignedIn) {
-      addGuestProduct(product, selected);
-      navigate('/cart');
+      try {
+        addGuestProduct(product, selected);
+        const line = readGuestCart().lines.find(item => item.variantId === selected.id);
+        if (!line) throw new Error('A inclusão não foi encontrada na sacola local.');
+        setAddedLine(line);
+        setBagSheetOpen(true);
+      } catch {
+        toast.error('Não foi possível salvar o item na sacola deste navegador. Verifique o espaço disponível e tente novamente.');
+      }
       return;
     }
     add.mutate({ data: { variantId: selected.id, quantity: 1 } }, {
-      onSuccess: () => {
+      onSuccess: cart => {
         void qc.invalidateQueries({ queryKey: getGetCartQueryKey() });
-        navigate('/cart');
+        const line = cart.lines.find(item => item.variantId === selected.id);
+        if (!line) {
+          toast.error('A sacola foi atualizada, mas não foi possível confirmar os dados do item. Abra a sacola para revisar.');
+          return;
+        }
+        setAddedLine(line);
+        setBagSheetOpen(true);
       },
       onError: error => toast.error(userFacingError(error)),
     });
@@ -167,7 +213,7 @@ export function StoreProductPage() {
     .replace(/\s*A galeria reúne a arte da frente e das costas e fotos de referência no manequim\.?/i, '')
     .trim();
   const allVariantsUnavailable = product.variants.length > 0 && product.variants.every(variant => variant.stock <= 0);
-  return <main className="shell store-page product-detail">
+  return <main className={`shell store-page product-detail${showStickyAdd ? ' has-sticky-purchase' : ''}`}>
     <div className="product-detail-grid">
       <div className={`product-gallery-wrap ${images.length > 1 ? 'has-thumbnails' : 'single-image'}`}>
         <nav className="product-breadcrumb" aria-label="Caminho da página" data-testid="product-breadcrumb">
@@ -227,10 +273,19 @@ export function StoreProductPage() {
         })}</div>}
             </>}
         {selectionError && <p id="product-option-error" className="product-option-error" role="alert">Escolha uma opção disponível antes de adicionar à sacola.</p>}
-        <button type="button" className="button w-full mt-5" data-testid="button-add-to-cart" disabled={!product.variants.length || allVariantsUnavailable || (selected !== undefined && selected.stock <= 0) || (isSignedIn && add.isPending)} onClick={addToBag}>{isSignedIn && add.isPending ? 'Adicionando…' : selected ? 'Adicionar à sacola' : allVariantsUnavailable ? 'Indisponível' : requiresOption ? sizeOptions ? 'Selecione um tamanho' : 'Selecione uma opção' : 'Indisponível'}</button>
+        <button ref={addButtonRef} type="button" className="button w-full mt-5" data-testid="button-add-to-cart" disabled={!product.variants.length || allVariantsUnavailable || (selected !== undefined && selected.stock <= 0) || (isSignedIn && add.isPending)} onClick={addToBag}>{isSignedIn && add.isPending ? 'Adicionando…' : selected ? 'Adicionar à sacola' : allVariantsUnavailable ? 'Indisponível' : requiresOption ? sizeOptions ? 'Selecione um tamanho' : 'Selecione uma opção' : 'Indisponível'}</button>
         <p className="product-assurance"><ShieldCheck size={16} />Pedido confirmado antes do pagamento. Instruções oficiais via PIX após a compra.</p>
       </section>
     </div>
+    {recommendations.data && <section className="product-related-products" aria-labelledby="product-related-heading">
+      {(() => {
+        const related = recommendations.data.filter(item => item.id !== product.id).slice(0, 8);
+        return related.length > 0 ? <>
+          <div className="product-related-heading"><div className="eyebrow">MAIS DA CATEGORIA</div><h2 id="product-related-heading">{product.categoryName ?? 'Rádio 88 FM'}</h2></div>
+          <ProductRail products={related} title={`Mais produtos de ${product.categoryName ?? 'Rádio 88 FM'}`} />
+        </> : null;
+      })()}
+    </section>}
     <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
       <DialogContent className="product-lightbox-dialog" aria-describedby="product-lightbox-description">
         <DialogTitle className="sr-only">Foto ampliada de {product.name}</DialogTitle>
@@ -243,6 +298,28 @@ export function StoreProductPage() {
         {images.length > 1 && <p className="product-lightbox-count">{Math.max(activeImageIndex + 1, 1)} de {images.length}</p>}
       </DialogContent>
     </Dialog>
+    <Sheet open={bagSheetOpen} onOpenChange={setBagSheetOpen}>
+      <SheetContent side="right" className="add-to-bag-sheet" aria-describedby="add-to-bag-description">
+        <SheetHeader className="add-to-bag-sheet-header">
+          <SheetTitle><CheckCircle2 size={20} aria-hidden="true" />Adicionado à sacola</SheetTitle>
+          <SheetDescription id="add-to-bag-description">Confira a opção incluída e escolha o próximo passo.</SheetDescription>
+        </SheetHeader>
+        {addedLine && <div className="add-to-bag-confirmed-item" data-testid="sheet-added-cart-line">
+          <ProductImage src={addedLine.imageUrl} name={addedLine.productName} className="add-to-bag-sheet-image" />
+          <div><h3>{addedLine.productName}</h3><p>{addedLine.variantName} · {addedLine.quantity} {addedLine.quantity === 1 ? 'unidade' : 'unidades'}</p><strong>{money(addedLine.unitPrice)}</strong></div>
+        </div>}
+        <div className="add-to-bag-sheet-actions">
+          <SheetClose asChild><button type="button" className="button button-outline" data-testid="button-continue-shopping">Continuar comprando</button></SheetClose>
+          <button type="button" className="button" onClick={() => { setBagSheetOpen(false); navigate('/cart'); }} data-testid="button-view-cart">Ver sacola <ArrowRight size={16} /></button>
+        </div>
+      </SheetContent>
+    </Sheet>
+    {showStickyAdd && !lightboxOpen && !bagSheetOpen && <div className="product-sticky-purchase" data-testid="product-sticky-purchase">
+      <div><strong>{selected ? money(selectedPrice) : lowestPriceCents !== null ? `A partir de ${money(lowestPriceCents / 100)}` : ''}</strong><small>{selected ? selected.name : sizeOptions ? 'Escolha um tamanho' : requiresOption ? 'Escolha uma opção' : product.name}</small></div>
+      <button type="button" className="button" disabled={!product.variants.length || allVariantsUnavailable || (isSignedIn && add.isPending)} onClick={addToBag} data-testid="button-sticky-add-to-cart">
+        {isSignedIn && add.isPending ? 'Adicionando…' : selected ? 'Adicionar à sacola' : allVariantsUnavailable ? 'Indisponível' : sizeOptions ? 'Escolher tamanho' : requiresOption ? 'Escolher opção' : 'Adicionar à sacola'}
+      </button>
+    </div>}
   </main>;
 }
 
@@ -329,7 +406,7 @@ const initialGuest: GuestFields = {
 
 function Confirmation({ order, guest }: { order: Order; guest: boolean }) {
   const orderStatus = order.status === 'awaiting_payment' ? 'Aguardando pagamento' : order.status === 'paid' ? 'Pagamento confirmado' : order.status === 'packing' ? 'Em separação' : order.status === 'shipped' ? 'Enviado' : order.status === 'delivered' ? 'Entregue' : order.status === 'picked_up' ? 'Retirado' : order.status === 'cancelled' ? 'Cancelado' : 'Devolvido';
-  return <main className="shell store-page"><section className="confirmation-card" data-testid="guest-order-confirmation">
+  return <main className="shell store-page"><StoreProgress current={3} /><section className="confirmation-card" data-testid="guest-order-confirmation">
     <div className="confirmation-stamp">88 / PEDIDO REGISTRADO</div><p className="eyebrow mt-8">NÚMERO DO PEDIDO</p>
     <h1 className="display" data-testid="text-confirmation-order-number">{order.orderNumber}</h1>
     <p className="confirmation-status" data-testid="status-order">{orderStatus}</p>
@@ -485,7 +562,7 @@ export function StoreCheckoutPage() {
   )} />;
 
   return <main className="shell store-page">
-    <div className="store-page-head"><div><div className="eyebrow">FINALIZAR PEDIDO</div><h1 className="display">Entrega e pagamento</h1><p>{isSignedIn ? 'Revise seus dados e escolha como receber.' : 'Sem criar conta. Vamos enviar a confirmação para seu e-mail.'}</p></div><span className="store-step">02 / 03</span></div>
+    <div className="store-page-head"><div><div className="eyebrow">FINALIZAR PEDIDO</div><h1 className="display">Entrega e revisão</h1><p>{isSignedIn ? 'Revise seus dados e escolha como receber.' : 'Sem criar conta. Escolha como receber e revise os dados antes de registrar o pedido.'}</p></div><StoreProgress current={2} /></div>
     <Form {...guestForm}><form noValidate className="checkout-layout" onSubmit={submitCheckout}>
       <div className="checkout-sections">
         <section className="checkout-panel"><div className="checkout-panel-title"><span>01</span><div><h2>Onde receber?</h2><p>Escolha entrega ou retirada nas opções disponíveis.</p></div></div>
@@ -556,11 +633,12 @@ export function StoreCheckoutPage() {
       <aside className="checkout-summary"><div className="eyebrow">RESUMO DA COMPRA</div>
         {cart.lines.map((line: CartLine) => <div className="checkout-item" key={line.variantId}><span>{line.quantity} × {line.productName}<small>{line.variantName}</small></span><strong>{money(line.lineTotal)}</strong></div>)}
         <div className="summary-row"><span>Subtotal</span><strong>{money(cart.subtotal)}</strong></div><div className="summary-row"><span>{pickupSelected ? 'Retirada na Rádio 88 FM' : 'Envio'}</span><strong>{chosen ? chosen.fee ? money(chosen.fee) : 'Grátis' : 'A escolher'}</strong></div>
-        <div className="summary-row total-row"><span>Total</span><strong>{money(cart.subtotal + (chosen?.fee ?? 0))}</strong></div>
+        {chosen ? <div className="summary-row total-row"><span>Total do pedido</span><strong>{money(cart.subtotal + chosen.fee)}</strong></div> : <div className="summary-row total-row"><span>Total após escolher entrega</span><strong>A calcular</strong></div>}
         <p className="safe-payment"><ShieldCheck size={17} />Instruções oficiais de pagamento aparecem somente após registrar o pedido. Não informe dados de cartão.</p>
          <button type="submit" className="button w-full" data-testid="button-submit-checkout" disabled={!accepted || !chosen || (isSignedIn ? createAccount.isPending : createGuest.isPending) || (isSignedIn && chosen.method === 'delivery' && !selectedAddress)}>
           {(createAccount.isPending || createGuest.isPending) ? 'Registrando pedido…' : 'Confirmar pedido'}
         </button>
+        <Link href="/contact" className="store-help-link" data-testid="link-checkout-help">Precisa de ajuda? Fale conosco</Link>
       </aside>
     </form></Form>
   </main>;

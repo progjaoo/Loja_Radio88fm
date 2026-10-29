@@ -194,6 +194,9 @@ export const getHomepageBannerResponseSlidesItemCtaLabelMax = 60;
 
 export const getHomepageBannerResponseSlidesItemCtaHrefMax = 2048;
 
+export const getHomepageBannerResponseSlidesItemImageDurationMsMin = 3000;
+export const getHomepageBannerResponseSlidesItemImageDurationMsMax = 15000;
+
 export const getHomepageBannerResponseSlidesMax = 8;
 
 
@@ -216,7 +219,13 @@ export const GetHomepageBannerResponse = zod.object({
   "mobileImageUrl": zod.string().url().nullable(),
   "alt": zod.string().max(getHomepageBannerResponseSlidesItemAltMax),
   "ctaLabel": zod.string().max(getHomepageBannerResponseSlidesItemCtaLabelMax),
-  "ctaHref": zod.string().max(getHomepageBannerResponseSlidesItemCtaHrefMax).nullable()
+  "ctaHref": zod.string().max(getHomepageBannerResponseSlidesItemCtaHrefMax).nullable(),
+  "mediaType": zod.enum(['image', 'video']).optional(),
+  "videoUrl": zod.string().url().nullish(),
+  "mobileVideoUrl": zod.string().url().nullish(),
+  "posterUrl": zod.string().url().nullish(),
+  "mobilePosterUrl": zod.string().url().nullish(),
+  "imageDurationMs": zod.number().int().min(getHomepageBannerResponseSlidesItemImageDurationMsMin).max(getHomepageBannerResponseSlidesItemImageDurationMsMax).optional()
 })).max(getHomepageBannerResponseSlidesMax)
 })
 
@@ -236,6 +245,9 @@ export const updateHomepageBannerBodySlidesItemCtaLabelMax = 60;
 
 export const updateHomepageBannerBodySlidesItemCtaHrefMax = 2048;
 
+export const updateHomepageBannerBodySlidesItemImageDurationMsMin = 3000;
+export const updateHomepageBannerBodySlidesItemImageDurationMsMax = 15000;
+
 export const updateHomepageBannerBodySlidesMax = 8;
 
 
@@ -251,7 +263,13 @@ export const UpdateHomepageBannerBody = zod.object({
   "mobileImageUrl": zod.string().url().nullable(),
   "alt": zod.string().max(updateHomepageBannerBodySlidesItemAltMax),
   "ctaLabel": zod.string().max(updateHomepageBannerBodySlidesItemCtaLabelMax),
-  "ctaHref": zod.string().max(updateHomepageBannerBodySlidesItemCtaHrefMax).nullable()
+  "ctaHref": zod.string().max(updateHomepageBannerBodySlidesItemCtaHrefMax).nullable(),
+  "mediaType": zod.enum(['image', 'video']).optional(),
+  "videoUrl": zod.string().url().nullish(),
+  "mobileVideoUrl": zod.string().url().nullish(),
+  "posterUrl": zod.string().url().nullish(),
+  "mobilePosterUrl": zod.string().url().nullish(),
+  "imageDurationMs": zod.number().int().min(updateHomepageBannerBodySlidesItemImageDurationMsMin).max(updateHomepageBannerBodySlidesItemImageDurationMsMax).optional()
 })).max(updateHomepageBannerBodySlidesMax)
 })
 
@@ -277,6 +295,9 @@ export const updateHomepageBannerResponseSlidesItemCtaLabelMax = 60;
 
 export const updateHomepageBannerResponseSlidesItemCtaHrefMax = 2048;
 
+export const updateHomepageBannerResponseSlidesItemImageDurationMsMin = 3000;
+export const updateHomepageBannerResponseSlidesItemImageDurationMsMax = 15000;
+
 export const updateHomepageBannerResponseSlidesMax = 8;
 
 
@@ -299,7 +320,13 @@ export const UpdateHomepageBannerResponse = zod.object({
   "mobileImageUrl": zod.string().url().nullable(),
   "alt": zod.string().max(updateHomepageBannerResponseSlidesItemAltMax),
   "ctaLabel": zod.string().max(updateHomepageBannerResponseSlidesItemCtaLabelMax),
-  "ctaHref": zod.string().max(updateHomepageBannerResponseSlidesItemCtaHrefMax).nullable()
+  "ctaHref": zod.string().max(updateHomepageBannerResponseSlidesItemCtaHrefMax).nullable(),
+  "mediaType": zod.enum(['image', 'video']).optional(),
+  "videoUrl": zod.string().url().nullish(),
+  "mobileVideoUrl": zod.string().url().nullish(),
+  "posterUrl": zod.string().url().nullish(),
+  "mobilePosterUrl": zod.string().url().nullish(),
+  "imageDurationMs": zod.number().int().min(updateHomepageBannerResponseSlidesItemImageDurationMsMin).max(updateHomepageBannerResponseSlidesItemImageDurationMsMax).optional()
 })).max(updateHomepageBannerResponseSlidesMax)
 })
 
@@ -315,6 +342,33 @@ export const UploadStoreImageResponse = zod.object({
   "url": zod.string().url(),
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
   "byteSize": zod.number().int().min(1).max(uploadStoreImageResponseByteSizeMax)
+})
+
+
+/**
+ * Requires content:manage. Accepts silent H.264 MP4 up to 3.5 MiB and 15 seconds to remain below the Vercel Function request-body limit.
+ * @summary Validate and upload a short public homepage video to object storage
+ */
+export const uploadStoreVideoResponseByteSizeMax = 3670016;
+
+export const uploadStoreVideoResponseDurationSecondsExclusiveMin = 0;
+export const uploadStoreVideoResponseDurationSecondsMax = 15;
+
+export const uploadStoreVideoResponseWidthMin = 320;
+export const uploadStoreVideoResponseWidthMax = 1920;
+
+export const uploadStoreVideoResponseHeightMin = 320;
+export const uploadStoreVideoResponseHeightMax = 1200;
+
+
+
+export const UploadStoreVideoResponse = zod.object({
+  "url": zod.string().url(),
+  "contentType": zod.enum(['video/mp4']),
+  "byteSize": zod.number().int().min(1).max(uploadStoreVideoResponseByteSizeMax),
+  "durationSeconds": zod.number().gt(uploadStoreVideoResponseDurationSecondsExclusiveMin).max(uploadStoreVideoResponseDurationSecondsMax),
+  "width": zod.number().int().min(uploadStoreVideoResponseWidthMin).max(uploadStoreVideoResponseWidthMax),
+  "height": zod.number().int().min(uploadStoreVideoResponseHeightMin).max(uploadStoreVideoResponseHeightMax)
 })
 
 

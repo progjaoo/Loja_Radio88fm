@@ -18,7 +18,7 @@ const DEFAULT_LAYOUT: HomepageLayout = {
     sec('catalog', 'Toda a vitrine', '', 100, 4),
     sec('categories', 'Explore por categoria', '', 100, 4),
   ],
-  hero: { title: 'A loja oficial dos ouvintes da Rádio 88 FM.', description: 'Produtos oficiais da estação, com venda direta, preço claro e pagamento via PIX confirmado manualmente pela equipe.', ctaLabel: 'Ver a vitrine', ctaHref: '/#vitrine', alignment: 'left' },
+  hero: { title: 'A loja oficial dos ouvintes da Rádio 88 FM.', description: 'Produtos oficiais da estação, com venda direta, preço claro e pagamento via PIX confirmado manualmente pela equipe.', ctaLabel: 'Ver a vitrine', ctaHref: '/?view=catalog', alignment: 'left' },
 };
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 const isHref = (v: string) => {
@@ -116,7 +116,7 @@ export function HomepageLayoutEditor() {
               <label className="block text-xs font-bold">Descrição<textarea className="field mt-1.5" rows={3} maxLength={400} disabled={off} value={draft.hero.description} onChange={e => setHero({ description: e.target.value })} /></label>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="block text-xs font-bold">Texto do botão<input className="field mt-1.5" maxLength={60} disabled={off} value={draft.hero.ctaLabel} onChange={e => setHero({ ctaLabel: e.target.value })} /></label>
-                <label className="block text-xs font-bold">Destino do botão<input className="field mt-1.5" maxLength={2048} disabled={off} value={draft.hero.ctaHref} onChange={e => setHero({ ctaHref: e.target.value })} placeholder="#vitrine, /?featured=true ou https://" /></label>
+                <label className="block text-xs font-bold">Destino do botão<input className="field mt-1.5" maxLength={2048} disabled={off} value={draft.hero.ctaHref} onChange={e => setHero({ ctaHref: e.target.value })} placeholder="/?view=catalog, /?featured=true ou https://" /></label>
                 <label className="block text-xs font-bold">Alinhamento<select className="field mt-1.5" disabled={off} value={draft.hero.alignment} onChange={e => setHero({ alignment: e.target.value as 'left' | 'center' })}><option value="left">Esquerda</option><option value="center">Centralizado</option></select></label>
               </div>
               <p className="text-xs text-muted-foreground">Com banner ativo e imagem, o banner (editado abaixo) é exibido no lugar deste texto.</p>

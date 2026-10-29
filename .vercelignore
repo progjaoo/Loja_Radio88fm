@@ -1,0 +1,19 @@
+# Project context remains local and is not part of the preview deployment.
+docs/
+.agents/
+*.md
+*.mdx
+*.markdown
+
+# Local-only screenshots, design tools, and product source images.
+.21st/
+.config/
+attached_assets/
+artifacts/radio88-store/public/produtos/
+artifacts/radio88-store/public/camisas-mostruário/
+artifacts/radio88-store/public/camisas-mostruário/
+
+# Local secrets and workspace metadata.
+.env*
+.replit
+.replitignore

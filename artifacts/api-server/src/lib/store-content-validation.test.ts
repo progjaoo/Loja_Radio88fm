@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bannerValidationError, isSafeBannerLink, isWebUrl } from "./store-content-validation.ts";
+import { bannerValidationError, isSafeBannerLink, isWebUrl, mergeBannerSlides } from "./store-content-validation.ts";
 
 const slide = {
   id: "slide-1",
@@ -54,6 +54,31 @@ test("legacy CTA labels do not affect photo-only slide validation", () => {
     enabled: false,
     slides: [{ ...slide, ctaLabel: "Conhecer" }],
   }), null);
+});
+
+test("legacy slides default to image media and retain a valid image duration", () => {
+  assert.equal(bannerValidationError({ enabled: true, slides: [{ ...slide, enabled: true, imageUrl: "https://example.com/banner.png", alt: "Arte da rádio" }] }), null);
+  assert.ok(bannerValidationError({ enabled: false, slides: [{ ...slide, imageDurationMs: 2500 }] }));
+  assert.equal(bannerValidationError({ enabled: false, slides: [{ ...slide, imageDurationMs: 15000 }] }), null);
+});
+
+test("video slides require an MP4 URL and poster only when published", () => {
+  const videoDraft = { ...slide, enabled: true, mediaType: "video" as const };
+  assert.equal(bannerValidationError({ enabled: false, slides: [videoDraft] }), null);
+  assert.ok(bannerValidationError({ enabled: true, slides: [{ ...videoDraft, alt: "Estrelas" }] }));
+  assert.equal(bannerValidationError({ enabled: true, slides: [{ ...videoDraft, videoUrl: "https://cdn.example.com/hero.mp4", posterUrl: "https://cdn.example.com/hero.png", alt: "Estrelas" }] }), null);
+  assert.ok(bannerValidationError({ enabled: false, slides: [{ ...videoDraft, mobileVideoUrl: "javascript:alert(1)" }] }));
+});
+
+test("legacy clients preserve video fields they omit and may clear them explicitly", () => {
+  const current = { ...slide, mediaType: "video" as const, videoUrl: "https://cdn.example.com/hero.mp4", posterUrl: "https://cdn.example.com/hero.png" };
+  const legacy = { ...slide, title: "Atualização pelo cliente antigo" };
+  const preserved = mergeBannerSlides([current], [legacy]);
+  assert.equal(preserved[0].mediaType, "video");
+  assert.equal(preserved[0].videoUrl, current.videoUrl);
+  const cleared = mergeBannerSlides([current], [{ ...legacy, mediaType: "image", videoUrl: null, posterUrl: null }]);
+  assert.equal(cleared[0].mediaType, "image");
+  assert.equal(cleared[0].videoUrl, null);
 });
 
 test("an enabled carousel needs at least one enabled slide, no duplicate IDs, and at most eight slides", () => {

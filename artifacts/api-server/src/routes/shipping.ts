@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import { CotarFreteBody, CotarFreteResponse, GetShippingSettingsResponse, UpdateShippingSettingsBody, UpdateShippingSettingsResponse } from "@workspace/api-zod";
 import { auditEventsTable, db, shippingSettingsTable } from "@workspace/db";
 import { getStoreProfile, requireStoreAuth, requireStorePermission } from "../middlewares/auth";
@@ -27,6 +27,13 @@ function sendLabelError(res: Parameters<Parameters<IRouter["post"]>[1]>[1], erro
   }
   res.status(503).json({ error: "Não foi possível concluir a operação de frete." });
 }
+const blockLabelMutationsInPreview: RequestHandler = (_req, res, next) => {
+  if (process.env.VERCEL_ENV === "preview") {
+    res.status(409).json({ error: "A emissão e alteração de etiquetas ficam desativadas no ambiente de prévia." });
+    return;
+  }
+  next();
+};
 
 router.post("/frete/cotar", requireStoreAuth, async (req, res): Promise<void> => {
   const parsed = CotarFreteBody.safeParse(req.body);
@@ -55,7 +62,7 @@ router.post("/frete/cotar", requireStoreAuth, async (req, res): Promise<void> =>
   }
 });
 
-router.post("/admin/orders/:orderId/shipping-label", requireStoreAuth, requireStorePermission("shipping:manage"), async (req, res): Promise<void> => {
+router.post("/admin/orders/:orderId/shipping-label", requireStoreAuth, requireStorePermission("shipping:manage"), blockLabelMutationsInPreview, async (req, res): Promise<void> => {
   const orderId = orderIdFromParam(req.params["orderId"]);
   if (!orderId) {
     res.status(400).json({ error: "Pedido inválido." });
@@ -81,7 +88,7 @@ router.get("/admin/orders/:orderId/shipping-label", requireStoreAuth, requireSto
   }
 });
 
-router.post("/admin/orders/:orderId/shipping-label/pay", requireStoreAuth, requireStorePermission("shipping:manage"), async (req, res): Promise<void> => {
+router.post("/admin/orders/:orderId/shipping-label/pay", requireStoreAuth, requireStorePermission("shipping:manage"), blockLabelMutationsInPreview, async (req, res): Promise<void> => {
   const orderId = orderIdFromParam(req.params["orderId"]);
   if (!orderId) {
     res.status(400).json({ error: "Pedido inválido." });
@@ -94,7 +101,7 @@ router.post("/admin/orders/:orderId/shipping-label/pay", requireStoreAuth, requi
   }
 });
 
-router.post("/admin/orders/:orderId/shipping-label/print", requireStoreAuth, requireStorePermission("shipping:manage"), async (req, res): Promise<void> => {
+router.post("/admin/orders/:orderId/shipping-label/print", requireStoreAuth, requireStorePermission("shipping:manage"), blockLabelMutationsInPreview, async (req, res): Promise<void> => {
   const orderId = orderIdFromParam(req.params["orderId"]);
   if (!orderId) {
     res.status(400).json({ error: "Pedido inválido." });
@@ -107,7 +114,7 @@ router.post("/admin/orders/:orderId/shipping-label/print", requireStoreAuth, req
   }
 });
 
-router.post("/admin/orders/:orderId/shipping-label/cancel", requireStoreAuth, requireStorePermission("shipping:manage"), async (req, res): Promise<void> => {
+router.post("/admin/orders/:orderId/shipping-label/cancel", requireStoreAuth, requireStorePermission("shipping:manage"), blockLabelMutationsInPreview, async (req, res): Promise<void> => {
   const orderId = orderIdFromParam(req.params["orderId"]);
   if (!orderId) {
     res.status(400).json({ error: "Pedido inválido." });
@@ -121,7 +128,7 @@ router.post("/admin/orders/:orderId/shipping-label/cancel", requireStoreAuth, re
   }
 });
 
-router.post("/admin/orders/:orderId/shipping-label/reconcile", requireStoreAuth, requireStorePermission("shipping:manage"), async (req, res): Promise<void> => {
+router.post("/admin/orders/:orderId/shipping-label/reconcile", requireStoreAuth, requireStorePermission("shipping:manage"), blockLabelMutationsInPreview, async (req, res): Promise<void> => {
   const orderId = orderIdFromParam(req.params["orderId"]);
   const providerLabelId = typeof req.body?.providerLabelId === "string" ? req.body.providerLabelId : "";
   if (!orderId || !providerLabelId) {

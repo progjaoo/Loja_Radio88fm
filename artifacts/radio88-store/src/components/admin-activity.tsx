@@ -41,20 +41,39 @@ const entityLabels: Record<string, string> = {
 
 const fieldLabels: Record<string, string> = {
   active: "situação",
+  attributes: "atributos",
+  barcode: "código de barras",
+  baseSku: "SKU base",
+  brand: "marca",
   categoryId: "categoria",
+  color: "cor",
+  costPrice: "preço de custo",
   description: "descrição",
+  dimensionsCm: "dimensões",
   featured: "destaque",
+  galleryLayout: "formato da galeria",
   imageUrl: "imagem",
+  images: "galeria de imagens",
+  internalCode: "código interno",
   lineId: "linha de produto",
+  lowStockThreshold: "limite de estoque baixo",
+  material: "material",
   name: "nome",
+  ncmSuggestion: "NCM preliminar",
   paymentStatus: "pagamento",
   price: "preço",
+  pieceType: "tipo de produto",
   promotionEndsAt: "fim da promoção",
   promotionStartsAt: "início da promoção",
+  promotionalPrice: "preço promocional",
   role: "função",
+  size: "tamanho",
+  sku: "SKU",
   status: "situação",
+  tags: "marcadores",
   title: "título",
   trackingCode: "código de rastreio",
+  weightGrams: "peso",
 };
 
 const statusLabels: Record<string, string> = {
@@ -130,9 +149,14 @@ function formatDetails(details: string): string {
     Array.isArray(record.fields) ? record.fields : [];
   const fields = fieldList
     .filter((field): field is string => typeof field === "string")
-    .map((field) => fieldLabels[field] ?? field.replace(/([A-Z])/g, " $1").toLocaleLowerCase("pt-BR"))
-    .filter((field) => !ignoredKey.test(field));
-  if (fields.length) parts.push(`Campos: ${fields.join(", ")}`);
+    .map((field) => {
+      const camelCaseField = field.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase());
+      const label = fieldLabels[field] ?? fieldLabels[camelCaseField];
+      if (ignoredKey.test(field) && !label) return null;
+      return label ?? field.replaceAll("_", " ").replace(/([A-Z])/g, " $1").toLocaleLowerCase("pt-BR");
+    })
+    .filter((field): field is string => field !== null);
+  if (fields.length) parts.push(`Campos: ${[...new Set(fields)].join(", ")}`);
 
   if (typeof record.permissionCount === "number") parts.push(`${record.permissionCount} permissões`);
   if (typeof record.updatedCount === "number") parts.push(`${record.updatedCount} produtos`);
@@ -155,9 +179,9 @@ export function AdminActivity({ events }: { events: AuditEvent[] }) {
     return <p className="mt-3 rounded-[20px] border border-dashed p-6 text-sm text-muted-foreground">Nenhuma atividade registrada.</p>;
   }
 
-  return <ol className="mt-4 grid gap-3" aria-label="Atividade administrativa">
+  return <ol className="admin-activity-list" aria-label="Atividade administrativa">
     {events.map((event) => (
-      <li key={event.id} className="flex gap-3 rounded-[20px] border border-border/70 bg-card p-4 shadow-soft">
+      <li key={event.id} className="admin-activity-event flex gap-3 rounded-[20px] border border-border/70 bg-card p-4 shadow-soft">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-foreground" aria-hidden="true">
           <Activity size={17} />
         </span>

@@ -1,4 +1,5 @@
 export const MAX_STORE_IMAGE_BYTES = 8 * 1024 * 1024;
+export const MAX_STORE_VIDEO_BYTES = Math.floor(3.5 * 1024 * 1024);
 
 export const STORE_IMAGE_TYPES = {
   "image/jpeg": { extension: "jpg", signature: (bytes: Buffer) => bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff },

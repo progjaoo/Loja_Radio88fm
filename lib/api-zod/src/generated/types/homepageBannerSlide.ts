@@ -5,6 +5,7 @@
  * API for the Rádio 88 FM commerce MVP
  * OpenAPI spec version: 0.1.0
  */
+import type { HomepageBannerSlideMediaType } from './homepageBannerSlideMediaType';
 
 export interface HomepageBannerSlide {
   /**
@@ -30,4 +31,18 @@ export interface HomepageBannerSlide {
      * @nullable
      */
   ctaHref: string | null;
+  mediaType?: HomepageBannerSlideMediaType;
+  /** @nullable */
+  videoUrl?: string | null;
+  /** @nullable */
+  mobileVideoUrl?: string | null;
+  /** @nullable */
+  posterUrl?: string | null;
+  /** @nullable */
+  mobilePosterUrl?: string | null;
+  /**
+     * @minimum 3000
+     * @maximum 15000
+     */
+  imageDurationMs?: number;
 }

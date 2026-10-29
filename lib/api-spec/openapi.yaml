@@ -135,6 +135,32 @@ paths:
         "413": { description: Maximum upload size is 8 MiB }
         "502": { description: Cloudflare R2 upload failed }
         "503": { description: Cloudflare R2 storage is not configured }
+  /admin/media/video:
+    post:
+      operationId: uploadStoreVideo
+      tags: [admin]
+      summary: Validate and upload a short public homepage video to object storage
+      description: Requires content:manage. Accepts silent H.264 MP4 up to 3.5 MiB and 15 seconds to remain below the Vercel Function request-body limit.
+      requestBody:
+        required: true
+        content:
+          video/mp4:
+            schema:
+              $ref: "#/components/schemas/StoreVideoFile"
+      responses:
+        "201":
+          description: Validated video URL and media metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreVideoAsset"
+        "400": { description: "Invalid MP4, codec, duration, dimensions or audio track" }
+        "401": { description: Sign-in required }
+        "403": { description: Content management permission required }
+        "413": { description: Maximum upload size is 3.5 MiB }
+        "415": { description: Only MP4 video is supported }
+        "502": { description: Cloudflare R2 upload failed }
+        "503": { description: Cloudflare R2 storage is not configured }
   /products:
     get:
       operationId: listProducts
@@ -1471,10 +1497,29 @@ components:
         alt: { type: string, maxLength: 240 }
         ctaLabel: { type: string, maxLength: 60 }
         ctaHref: { type: ["string", "null"], maxLength: 2048 }
+        mediaType: { type: string, enum: [image, video] }
+        videoUrl: { type: ["string", "null"], format: uri }
+        mobileVideoUrl: { type: ["string", "null"], format: uri }
+        posterUrl: { type: ["string", "null"], format: uri }
+        mobilePosterUrl: { type: ["string", "null"], format: uri }
+        imageDurationMs: { type: integer, minimum: 3000, maximum: 15000 }
       required: [id, enabled, title, description, imageUrl, mobileImageUrl, alt, ctaLabel, ctaHref]
     StoreImageFile:
       type: string
       format: binary
+    StoreVideoFile:
+      type: string
+      format: binary
+    StoreVideoAsset:
+      type: object
+      properties:
+        url: { type: string, format: uri }
+        contentType: { type: string, enum: [video/mp4] }
+        byteSize: { type: integer, minimum: 1, maximum: 3670016 }
+        durationSeconds: { type: number, exclusiveMinimum: 0, maximum: 15 }
+        width: { type: integer, minimum: 320, maximum: 1920 }
+        height: { type: integer, minimum: 320, maximum: 1200 }
+      required: [url, contentType, byteSize, durationSeconds, width, height]
     StoreImageAsset:
       type: object
       properties:

@@ -40,13 +40,14 @@ import { usePostalAddress } from '@/lib/postal-address';
 import { PostalLookupStatus } from '@/components/postal-lookup-status';
 import { AdminShippingConfig } from '@/components/admin-shipping-config';
 import { AdminFiscalPage } from '@/components/admin-fiscal';
-import { AdminAccessPage } from '@/components/admin-access-page';
+import { AdminAccessPage, AdminActivityPage } from '@/components/admin-access-page';
 import { AdminPermissionsProvider, useAdminPermissions } from '@/components/admin-permissions';
 import { useCan } from '@/components/admin-permissions';
 import { Toaster } from '@/components/ui/sonner';
 import { StoreCartPage, StoreCheckoutPage, StoreProductPage } from '@/components/store-commerce';
 import { TermsAcceptance } from '@/components/legal-document-dialog';
 import { ContactPage, LegalPage } from '@/components/legal-pages';
+import { StoreHelpPage } from '@/components/store-help';
 import { CookiePolicyPage, FavoriteToggle, FavoritesPage } from '@/components/shop-support';
 import { addGuestProduct } from '@/lib/guest-cart';
 import { userFacingError } from '@/lib/user-facing-errors';
@@ -282,7 +283,8 @@ function canOpenSection(section: string, permissions: ReadonlySet<string>) {
     "/admin/orders": { all: ["orders:read", "payments:read"] },
     "/admin/stock": { all: ["inventory:read"] },
     "/admin/content": { all: ["content:read"] },
-    "/admin/users": { any: ["users:read", "roles:read", "audit:read"] },
+    "/admin/users": { any: ["users:read", "roles:read"] },
+    "/admin/activity": { all: ["audit:read"] },
     "/admin/config": { all: ["shipping:read"] },
     "/admin/fiscal": { any: ["fiscal:read", "fiscal:manage"] },
   };
@@ -293,9 +295,21 @@ function canOpenSection(section: string, permissions: ReadonlySet<string>) {
 }
 function AdminLayoutFrame({ children, title, section }: { children: ReactNode; title: string; section: string }) {
   const permissions = useAdminPermissions();
-  const items = [['/admin','Visão geral',Activity], ['/admin/products','Produtos e categorias',Package], ['/admin/orders','Pedidos e pagamentos',ClipboardList], ['/admin/stock','Estoque',Warehouse], ['/admin/content','Conteúdo da vitrine',Info], ['/admin/users','Pessoas e acessos',Users], ['/admin/config','Frete e envios',Truck], ['/admin/fiscal','Notas fiscais',FileText]] as const;
+  const items = [['/admin','Visão geral',Activity], ['/admin/products','Produtos e categorias',Package], ['/admin/orders','Pedidos e pagamentos',ClipboardList], ['/admin/stock','Estoque',Warehouse], ['/admin/content','Conteúdo da vitrine',Info], ['/admin/users','Pessoas e acessos',Users], ['/admin/activity','Atividade',Clock3], ['/admin/config','Frete e envios',Truck], ['/admin/fiscal','Notas fiscais',FileText]] as const;
   const allowed = canOpenSection(section, permissions);
-  return <main className="shell py-8"><div className="eyebrow text-foreground">PAINEL DA RÁDIO 88 FM</div><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><h1 className="display text-4xl">{title}</h1><p className="mt-2 text-sm text-muted-foreground">Operação da loja, com dados vindos do sistema.</p></div><span className="rounded-full bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground">ACESSO VALIDADO PELO SERVIDOR</span></div><div className="mt-7 grid gap-7 lg:grid-cols-[215px_1fr]"><aside className="flex gap-2 overflow-x-auto lg:flex-col" aria-label="Seções administrativas">{items.filter(([url]) => canOpenSection(url, permissions)).map(([url,label,Icon]) => <Link href={url} key={url} aria-current={section === url ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-semibold ${section === url ? 'bg-[#332f2d] text-white' : 'bg-card shadow-soft hover:border-foreground'}`}><Icon size={17} />{label}</Link>)}</aside><section className="min-w-0">{allowed ? children : <div className="rounded-[24px] border border-dashed p-7 text-sm text-muted-foreground">Seu perfil não tem acesso a esta seção.</div>}</section></div></main>;
+  return <main className="shell admin-layout py-8">
+    <div className="eyebrow text-foreground">PAINEL DA RÁDIO 88 FM</div>
+    <div className="admin-page-heading mt-2">
+      <div><h1 className="display">{title}</h1><p>Operação da loja, com dados vindos do sistema.</p></div>
+      <span className="admin-access-validation">Acesso validado pelo servidor</span>
+    </div>
+    <div className="admin-workspace-grid mt-7 grid gap-7 lg:grid-cols-[215px_1fr]">
+      <aside className="admin-sidebar flex gap-2 overflow-x-auto lg:flex-col" aria-label="Seções administrativas">
+        {items.filter(([url]) => canOpenSection(url, permissions)).map(([url,label,Icon]) => <Link href={url} key={url} aria-current={section === url ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-semibold ${section === url ? 'bg-[#332f2d] text-white' : 'bg-card shadow-soft hover:border-foreground'}`}><Icon size={17} />{label}</Link>)}
+      </aside>
+      <section className="admin-workspace-content min-w-0">{allowed ? children : <div className="rounded-[24px] border border-dashed p-7 text-sm text-muted-foreground">Seu perfil não tem acesso a esta seção.</div>}</section>
+    </div>
+  </main>;
 }
 function AdminLayout({ children, title, section }: { children: ReactNode; title: string; section: string }) {
   return <AdminGate><AdminLayoutFrame title={title} section={section}>{children}</AdminLayoutFrame></AdminGate>;
@@ -571,8 +585,8 @@ function AdminPeople() {
 }
 
 function Home() { return <Catalog />; }
-function SignInPage() { return <div className="grid min-h-[100dvh] content-center bg-background px-4 py-8"><div className="mx-auto mb-4 w-full max-w-[440px]"><Logo /></div><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div>; }
-function SignUpPage() { return <div className="grid min-h-[100dvh] content-center bg-background px-4 py-8"><div className="mx-auto mb-4 w-full max-w-[440px]"><Logo /></div><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div>; }
+function SignInPage() { return <div className="grid min-h-[100dvh] content-center bg-muted px-4 py-8"><div className="mx-auto mb-4 w-full max-w-[440px]"><Logo /></div><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div>; }
+function SignUpPage() { return <div className="grid min-h-[100dvh] content-center bg-muted px-4 py-8"><div className="mx-auto mb-4 w-full max-w-[440px]"><Logo /></div><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div>; }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <>{children}</>;
@@ -594,6 +608,7 @@ function Routes() {
     <Route path="/privacy" component={()=><Shell><LegalPage type="privacy"/></Shell>} />
     <Route path="/returns" component={()=><Shell><LegalPage type="returns"/></Shell>} />
     <Route path="/cookies" component={()=><Shell><CookiePolicyPage/></Shell>} />
+    <Route path="/help" component={()=><Shell><StoreHelpPage/></Shell>} />
     <Route path="/contact" component={()=><Shell><ContactPage/></Shell>} />
     <Route path="/admin" component={()=><Shell><AdminHome/></Shell>} />
     <Route path="/admin/products" component={()=><Shell><AdminLayout title="Produtos e categorias" section="/admin/products"><AdminProductsCatalog/></AdminLayout></Shell>} />
@@ -603,6 +618,7 @@ function Routes() {
     <Route path="/admin/config" component={()=><Shell><AdminLayout title="Frete e envios" section="/admin/config"><AdminShippingConfig/></AdminLayout></Shell>} />
     <Route path="/admin/fiscal" component={()=><Shell><AdminLayout title="Notas fiscais" section="/admin/fiscal"><AdminFiscalPage/></AdminLayout></Shell>} />
     <Route path="/admin/users" component={()=><Shell><AdminPeople/></Shell>} />
+    <Route path="/admin/activity" component={()=><Shell><AdminLayout title="Atividade administrativa" section="/admin/activity"><AdminActivityPage/></AdminLayout></Shell>} />
     <Route component={()=><Shell><main className="shell py-24 text-center"><div className="eyebrow">Página não encontrada</div><h1 className="display mt-3 text-5xl">Essa página saiu do ar.</h1><Link href="/" className="button mt-6">Voltar para a loja</Link></main></Shell>} />
   </Switch>;
 }
@@ -616,7 +632,7 @@ function RealtimeBridge() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
   const qc = useQueryClient();
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
+    if (import.meta.env.VITE_REALTIME_ENABLED === 'false' || !isLoaded || !isSignedIn) return;
 
     let disposed = false;
     const socket = io(window.location.origin, {
@@ -681,8 +697,28 @@ function ClerkRoutes() {
   const appearance = {
     theme: shadcn, cssLayerName: 'clerk',
     options: { logoPlacement: 'inside' as const, logoLinkUrl: basePath || '/', logoImageUrl: `${window.location.origin}${basePath}/logo.svg` },
-    variables: { colorPrimary: '#b93830', colorForeground: '#202522', colorMutedForeground: '#71766f', colorDanger: '#8f2b26', colorBackground: '#fffdf7', colorInput: '#fffdf7', colorInputForeground: '#202522', colorNeutral: '#ded6c9', fontFamily: 'Helvetica, Arial, sans-serif', borderRadius: '4px' },
-    elements: { rootBox:'w-full flex justify-center', cardBox:'bg-white rounded-[28px] w-[440px] max-w-full overflow-hidden shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(0,0,0,0.1)]', card:'!shadow-none !border-0 !bg-transparent !rounded-none', footer:'!shadow-none !border-0 !bg-transparent !rounded-none', headerTitle:'text-black tracking-tight font-medium', headerSubtitle:'text-[#787574]', socialButtonsBlockButtonText:'text-black', formFieldLabel:'text-black', footerActionLink:'text-black underline', footerActionText:'text-[#787574]', dividerText:'text-[#787574]', identityPreviewEditButton:'text-black underline', formFieldSuccessText:'text-black', alertText:'text-black', socialButtonsBlockButton:'border-[#ebebeb] rounded-full', formButtonPrimary:'bg-black text-white rounded-full hover:bg-[#332f2d]', formFieldInput:'border-[#ebebeb] text-black rounded-full', dividerLine:'bg-[#ebebeb]', otpCodeFieldInput:'border-[#ebebeb] text-black' }
+    variables: { colorPrimary: '#202522', colorForeground: '#202522', colorMutedForeground: '#626a62', colorDanger: '#b3261e', colorBackground: '#ffffff', colorInput: '#ffffff', colorInputForeground: '#202522', colorNeutral: '#767676', fontFamily: 'Helvetica, Arial, sans-serif', borderRadius: '8px' },
+    elements: {
+      rootBox: 'w-full flex justify-center',
+      cardBox: 'w-[440px] max-w-full overflow-hidden rounded-[24px] border border-[#dedede] bg-white shadow-[0_14px_45px_rgba(0,0,0,0.08)]',
+      card: 'border-0 bg-white shadow-none',
+      footer: 'border-0 bg-white shadow-none',
+      headerTitle: 'font-medium tracking-tight text-[#202522]',
+      headerSubtitle: 'text-[#626a62]',
+      socialButtonsBlockButtonText: 'text-[#202522]',
+      formFieldLabel: 'text-[#202522]',
+      footerActionLink: 'text-[#202522] underline',
+      footerActionText: 'text-[#626a62]',
+      dividerText: 'text-[#626a62]',
+      identityPreviewEditButton: 'text-[#202522] underline',
+      formFieldSuccessText: 'text-[#24633f]',
+      alertText: 'text-[#b3261e]',
+      socialButtonsBlockButton: 'rounded-lg border-[#dedede] bg-white',
+      formButtonPrimary: 'rounded-lg bg-[#202522] text-white hover:bg-[#3c423d]',
+      formFieldInput: 'rounded-lg border-[#767676] bg-white text-[#202522]',
+      dividerLine: 'bg-[#dedede]',
+      otpCodeFieldInput: 'rounded-lg border-[#767676] text-[#202522]',
+    },
   };
   return <ClerkProvider publishableKey={clerkPubKey} proxyUrl={clerkProxyUrl} appearance={appearance} signInUrl={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} localization={{...ptBR,signIn:{...ptBR.signIn,start:{...ptBR.signIn?.start,title:'Que bom ter você de volta',subtitle:'Entre para acompanhar sua sintonia.'}},signUp:{...ptBR.signUp,start:{...ptBR.signUp?.start,title:'Chegue mais perto da 88',subtitle:'Crie sua conta para comprar e acompanhar pedidos.'}}}} routerPush={(to: string)=>setLocation(stripBase(to))} routerReplace={(to: string)=>setLocation(stripBase(to),{replace:true})}><QueryClientProvider client={client}><ClerkCacheInvalidator/><RealtimeBridge/><Toaster position="top-right"/><RoutedErrorBoundary><Routes/></RoutedErrorBoundary></QueryClientProvider></ClerkProvider>;
 }

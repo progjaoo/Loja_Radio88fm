@@ -9,7 +9,7 @@ export const defaultHomepageLayout = {
     title: "A loja oficial dos ouvintes da Rádio 88 FM.",
     description: "Produtos oficiais da estação, com venda direta, preço claro e pagamento via PIX confirmado manualmente pela equipe.",
     ctaLabel: "Ver a vitrine",
-    ctaHref: "/#vitrine",
+    ctaHref: "/?view=catalog",
     alignment: "left",
   },
 };

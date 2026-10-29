@@ -16,7 +16,7 @@ export function LegalDocumentDialog({ type, open, onOpenChange }: LegalDocumentD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto border-[#ded6c9] bg-[#fffdf7] sm:max-w-2xl" data-testid={`dialog-legal-${type}`}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto border-border bg-background sm:max-w-2xl" data-testid={`dialog-legal-${type}`}>
         <DialogHeader className="text-left">
           <div className="eyebrow text-foreground">RÁDIO 88 FM · INFORMAÇÃO CLARA</div>
           <DialogTitle className="display mt-2 text-3xl font-medium">{document.title}</DialogTitle>

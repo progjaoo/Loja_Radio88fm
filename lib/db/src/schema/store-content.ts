@@ -12,6 +12,12 @@ export type HomepageBannerSlideData = {
   alt: string;
   ctaLabel: string;
   ctaHref: string | null;
+  mediaType?: "image" | "video";
+  videoUrl?: string | null;
+  mobileVideoUrl?: string | null;
+  posterUrl?: string | null;
+  mobilePosterUrl?: string | null;
+  imageDurationMs?: number;
 };
 
 export const homepageBannerTable = pgTable("store_homepage_banner", {

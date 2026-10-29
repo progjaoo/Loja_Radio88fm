@@ -7,9 +7,9 @@ import {
 } from "@workspace/api-zod";
 import { auditEventsTable, categoriesTable, db, homepageBannerTable, homepageLayoutTable, productsTable } from "@workspace/db";
 import { getStoreProfile, requireStoreAuth, requireStorePermission } from "../middlewares/auth";
-import { bannerValidationError } from "../lib/store-content-validation";
-import { isSafeBannerLink } from "../lib/store-content-validation";
+import { bannerValidationError, isSafeBannerLink, mergeBannerSlides } from "../lib/store-content-validation";
 import { defaultHomepageLayout, homepageSectionsValid } from "../lib/homepage-layout";
+import { isOwnedHomepagePosterUrl, isOwnedHomepageVideoUrl } from "../lib/store-video";
 
 const router: IRouter = Router();
 router.get("/homepage-layout", async (_req, res): Promise<void> => {
@@ -58,16 +58,28 @@ router.get("/homepage-banner", async (_req, res): Promise<void> => {
 router.put("/admin/homepage-banner", requireStoreAuth, requireStorePermission("content:manage"), async (req, res): Promise<void> => {
   const parsed = UpdateHomepageBannerBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const error = bannerValidationError(parsed.data);
-  if (error) { res.status(400).json({ error }); return; }
   const actor = getStoreProfile(res);
-  const representativeSlide = parsed.data.slides.find(slide => slide.enabled) ?? parsed.data.slides[0];
-  const banner = await db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
+    const [previous] = await tx.select().from(homepageBannerTable).where(eq(homepageBannerTable.id, "main")).limit(1);
+    // Old clients do not know video fields. Preserve omitted values so saving from them cannot silently erase newer media.
+    const slides = mergeBannerSlides(previous?.slides ?? [], parsed.data.slides);
+    const error = bannerValidationError({ enabled: parsed.data.enabled, slides });
+    if (error) return { error } as const;
+    const requestOrigin = req.get("origin") ?? `${req.protocol}://${req.get("host")}`;
+    let publicOrigin = "";
+    try { publicOrigin = new URL(process.env.R2_PUBLIC_URL ?? "").origin; } catch { /* missing storage config is handled by the upload endpoint */ }
+    if (slides.some(slide => slide.mediaType === "video" && [slide.videoUrl, slide.mobileVideoUrl].some(url => url && !isOwnedHomepageVideoUrl(url, publicOrigin, requestOrigin)))) {
+      return { error: "Envie os vídeos pelo carregador da loja ou use o vídeo de demonstração fornecido." } as const;
+    }
+    if (slides.some(slide => slide.mediaType === "video" && [slide.posterUrl, slide.mobilePosterUrl].some(url => url && !isOwnedHomepagePosterUrl(url, publicOrigin, requestOrigin)))) {
+      return { error: "Use uma capa enviada ao armazenamento da loja ou o poster de demonstração fornecido." } as const;
+    }
+    const representativeSlide = slides.find(slide => slide.enabled) ?? slides[0];
     const [saved] = await tx.insert(homepageBannerTable)
       .values({
         id: "main",
         enabled: parsed.data.enabled,
-        slides: parsed.data.slides,
+        slides,
         title: representativeSlide?.title ?? "",
         description: representativeSlide?.description ?? "",
         imageUrl: representativeSlide?.imageUrl ?? null,
@@ -80,7 +92,7 @@ router.put("/admin/homepage-banner", requireStoreAuth, requireStorePermission("c
         target: homepageBannerTable.id,
         set: {
           enabled: parsed.data.enabled,
-          slides: parsed.data.slides,
+          slides,
           title: representativeSlide?.title ?? "",
           description: representativeSlide?.description ?? "",
           imageUrl: representativeSlide?.imageUrl ?? null,
@@ -95,11 +107,12 @@ router.put("/admin/homepage-banner", requireStoreAuth, requireStorePermission("c
     await tx.insert(auditEventsTable).values({
       actorId: actor.userId, actorName: actor.fullName, action: "homepage.banner.updated",
       entityType: "homepage_banner", entityId: "main",
-      details: { enabled: parsed.data.enabled, activeSlides: parsed.data.slides.filter(slide => slide.enabled).length },
+      details: { enabled: parsed.data.enabled, activeSlides: slides.filter(slide => slide.enabled).length },
     });
-    return saved;
+    return { banner: saved } as const;
   });
-  res.json(UpdateHomepageBannerResponse.parse(banner));
+  if ("error" in result) { res.status(400).json({ error: result.error }); return; }
+  res.json(UpdateHomepageBannerResponse.parse(result.banner));
 });
 
 router.patch("/admin/categories/:categoryId", requireStoreAuth, requireStorePermission("categories:manage"), async (req, res): Promise<void> => {

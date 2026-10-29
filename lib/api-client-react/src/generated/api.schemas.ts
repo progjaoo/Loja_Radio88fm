@@ -170,6 +170,14 @@ export interface HomepageLayout {
   hero: HomepageLayoutHero;
 }
 
+export type HomepageBannerSlideMediaType = typeof HomepageBannerSlideMediaType[keyof typeof HomepageBannerSlideMediaType];
+
+
+export const HomepageBannerSlideMediaType = {
+  image: 'image',
+  video: 'video',
+} as const;
+
 export interface HomepageBannerSlide {
   /**
      * @minLength 1
@@ -194,6 +202,20 @@ export interface HomepageBannerSlide {
      * @nullable
      */
   ctaHref: string | null;
+  mediaType?: HomepageBannerSlideMediaType;
+  /** @nullable */
+  videoUrl?: string | null;
+  /** @nullable */
+  mobileVideoUrl?: string | null;
+  /** @nullable */
+  posterUrl?: string | null;
+  /** @nullable */
+  mobilePosterUrl?: string | null;
+  /**
+     * @minimum 3000
+     * @maximum 15000
+     */
+  imageDurationMs?: number;
 }
 
 export interface HomepageBanner {
@@ -226,6 +248,40 @@ export interface HomepageBannerUpdate {
 }
 
 export type StoreImageFile = Blob;
+
+export type StoreVideoFile = Blob;
+
+export type StoreVideoAssetContentType = typeof StoreVideoAssetContentType[keyof typeof StoreVideoAssetContentType];
+
+
+export const StoreVideoAssetContentType = {
+  'video/mp4': 'video/mp4',
+} as const;
+
+export interface StoreVideoAsset {
+  url: string;
+  contentType: StoreVideoAssetContentType;
+  /**
+     * @minimum 1
+     * @maximum 3670016
+     */
+  byteSize: number;
+  /**
+     * @maximum 15
+     * @exclusiveMinimum 0
+     */
+  durationSeconds: number;
+  /**
+     * @minimum 320
+     * @maximum 1920
+     */
+  width: number;
+  /**
+     * @minimum 320
+     * @maximum 1200
+     */
+  height: number;
+}
 
 export type StoreImageAssetContentType = typeof StoreImageAssetContentType[keyof typeof StoreImageAssetContentType];
 
