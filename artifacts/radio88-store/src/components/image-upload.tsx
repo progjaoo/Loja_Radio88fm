@@ -5,6 +5,12 @@ import { uploadStoreImage } from "@workspace/api-client-react";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
+function getAspectRatioLabel(width: number, height: number): string {
+  const greatestCommonDivisor = (a: number, b: number): number => b === 0 ? a : greatestCommonDivisor(b, a % b);
+  const divisor = greatestCommonDivisor(width, height);
+  return `${width / divisor}:${height / divisor}`;
+}
+
 export function ImageUploadField({
   value,
   onChange,
@@ -129,7 +135,7 @@ export function ImageUploadField({
         <span className="text-xs text-muted-foreground">ou arraste uma imagem até aqui</span>
       </div>
       <p data-testid={`hint-${testId}`} className="text-xs text-muted-foreground">JPG, PNG ou WebP · até 8 MB · a imagem ficará pública.</p>
-      {imageRequirements && <p className="text-xs text-muted-foreground">Padrão do carrossel: {imageRequirements.width} × {imageRequirements.height} px (16:9). Mínimo: {imageRequirements.minWidth} × {imageRequirements.minHeight} px na mesma proporção. Arquivos fora do padrão não serão enviados.</p>}
+      {imageRequirements && <p className="text-xs text-muted-foreground">Padrão do carrossel: {imageRequirements.width} × {imageRequirements.height} px ({getAspectRatioLabel(imageRequirements.width, imageRequirements.height)}). Mínimo: {imageRequirements.minWidth} × {imageRequirements.minHeight} px na mesma proporção. Arquivos fora do padrão não serão enviados.</p>}
       {message && (
         <p
           role={isError ? "alert" : "status"}
