@@ -303,7 +303,7 @@ function AdminLayoutFrame({ children, title, section }: { children: ReactNode; t
       <div><h1 className="display">{title}</h1><p>Operação da loja, com dados vindos do sistema.</p></div>
       <span className="admin-access-validation">Acesso validado pelo servidor</span>
     </div>
-    <div className="admin-workspace-grid mt-7 grid gap-7 lg:grid-cols-[215px_1fr]">
+    <div className="admin-workspace-grid mt-7 grid gap-7 lg:grid-cols-[215px_minmax(0,1fr)]">
       <aside className="admin-sidebar flex gap-2 overflow-x-auto lg:flex-col" aria-label="Seções administrativas">
         {items.filter(([url]) => canOpenSection(url, permissions)).map(([url,label,Icon]) => <Link href={url} key={url} aria-current={section === url ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-semibold ${section === url ? 'bg-[#332f2d] text-white' : 'bg-card shadow-soft hover:border-foreground'}`}><Icon size={17} />{label}</Link>)}
       </aside>

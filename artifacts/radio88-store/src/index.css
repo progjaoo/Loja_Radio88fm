@@ -2111,3 +2111,43 @@ body:has(.cl-rootBox) { background:#f5f5f5; color:#202522; }
 @media(prefers-reduced-motion:reduce) {
   .hero88-indicators button span { transition:none; }
 }
+
+/* Keep every operations screen within its workspace, including intrinsic form/media sizes. */
+.admin-layout { min-width:0; }
+.admin-workspace-grid,.admin-workspace-content { width:100%; max-width:100%; min-width:0; }
+.admin-workspace-content { container-type:inline-size; }
+.admin-workspace-content :where(section,article,form,fieldset,label,.grid,.flex) { min-width:0; }
+.admin-workspace-content fieldset { min-inline-size:0; max-width:100%; }
+.admin-workspace-content :where(input:not([type=checkbox]):not([type=radio]),select,textarea) { min-width:0; max-width:100%; }
+.admin-workspace-content :where(p,h2,h3,h4,small,legend,label) { overflow-wrap:anywhere; }
+.admin-workspace-content :where(img,video) { max-width:100%; }
+.admin-workspace-content :where(.catalog-table-wrap,.stock-table-wrap,.stock-preview-table) { width:100%; max-width:100%; overflow-x:auto; }
+.admin-workspace-content .hle-preview { width:100%; min-width:0; max-width:100%; }
+.admin-workspace-content .hle-bar { border-radius:18px; }
+.admin-workspace-content .hle-bar > span { min-width:120px; }
+.admin-sidebar { top:110px; max-height:calc(100dvh - 126px); }
+@container (max-width:720px) {
+  .admin-workspace-content :where(.grid.sm\:grid-cols-3,.grid.sm\:grid-cols-2,.grid.lg\:grid-cols-2,.grid.lg\:grid-cols-3,.grid.lg\:grid-cols-4,.grid.xl\:grid-cols-2) { grid-template-columns:minmax(0,1fr); }
+  .admin-workspace-content .flex.justify-between { flex-wrap:wrap; }
+  .admin-workspace-content .hle-bar > button { flex:1 1 150px; white-space:normal; }
+  .admin-workspace-content .hle-bar > span { flex-basis:100%; }
+}
+@media(max-width:1023px) {
+  .admin-workspace-grid { align-items:stretch; }
+  .admin-sidebar { top:100px; max-height:none; }
+}
+@media(max-width:767px) {
+  .admin-layout { width:calc(100% - 24px); }
+  .admin-sidebar { top:64px; }
+  .admin-workspace-content .flex.justify-between { flex-wrap:wrap; }
+  .admin-workspace-content .admin-activity-event time { white-space:normal; }
+}
+.admin-workspace-content :where(div,header,figure) { min-width:0; }
+.admin-workspace-content :where(.grid,.hle-list) > * { min-width:0; max-width:100%; }
+.admin-workspace-content .orders-toolbar { flex-wrap:wrap; }
+.admin-workspace-content .orders-board { width:100%; max-width:100%; }
+@container (max-width:720px) {
+  .orders-heading,.stock-heading { flex-direction:column; align-items:flex-start; }
+  .stock-heading-actions { width:100%; flex-wrap:wrap; }
+  .stock-heading-actions .stock-button { flex:1 1 140px; }
+}
