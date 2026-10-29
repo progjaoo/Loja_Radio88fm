@@ -10,7 +10,6 @@ export type StoreImageAssetContentType = typeof StoreImageAssetContentType[keyof
 
 
 export const StoreImageAssetContentType = {
-  'image/jpeg': 'image/jpeg',
-  'image/png': 'image/png',
   'image/webp': 'image/webp',
+  'image/avif': 'image/avif',
 } as const;

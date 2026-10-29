@@ -332,15 +332,15 @@ export const UpdateHomepageBannerResponse = zod.object({
 
 
 /**
- * @summary Upload a public product or homepage image to object storage
+ * @summary Upload an optimized public WebP or AVIF product or homepage image to object storage
  */
-export const uploadStoreImageResponseByteSizeMax = 8388608;
+export const uploadStoreImageResponseByteSizeMax = 4194304;
 
 
 
 export const UploadStoreImageResponse = zod.object({
   "url": zod.string().url(),
-  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "contentType": zod.enum(['image/webp', 'image/avif']),
   "byteSize": zod.number().int().min(1).max(uploadStoreImageResponseByteSizeMax)
 })
 

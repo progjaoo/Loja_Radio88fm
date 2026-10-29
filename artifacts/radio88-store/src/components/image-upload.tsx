@@ -1,9 +1,11 @@
 import { userFacingError } from '@/lib/user-facing-errors';
 import { useState, type ChangeEvent, type DragEvent } from "react";
 import { uploadStoreImage } from "@workspace/api-client-react";
+import { ImageOptimizationError, optimizeImageForR2 } from '@/lib/image-optimization';
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const formatBytes = (bytes: number) => bytes >= 1024 * 1024
+  ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 export function ImageUploadField({
   value,
@@ -28,27 +30,20 @@ export function ImageUploadField({
     setMessage("");
     setIsError(false);
 
-    if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
-      setMessage("Escolha uma imagem JPG, PNG ou WebP.");
-      setIsError(true);
-      return;
-    }
-    if (file.size < 1 || file.size > MAX_IMAGE_BYTES) {
-      setMessage("A imagem deve ter entre 1 byte e 8 MB.");
-      setIsError(true);
-      return;
-    }
-
     setUploading(true);
     onUploadingChange?.(true);
     try {
-      const asset = await uploadStoreImage(file, {
-        headers: { "Content-Type": file.type },
+      setMessage("Otimizando imagem para WebP ou AVIF…");
+      const optimizedFile = await optimizeImageForR2(file);
+      const asset = await uploadStoreImage(optimizedFile, {
+        headers: { "Content-Type": optimizedFile.type },
       });
       onChange(asset.url);
-      setMessage("Imagem enviada para o Cloudflare R2.");
+      const savings = file.size > optimizedFile.size ? ` · ${formatBytes(file.size)} → ${formatBytes(optimizedFile.size)}` : '';
+      const format = optimizedFile.type === 'image/avif' ? 'AVIF' : 'WebP';
+      setMessage(`Imagem otimizada para ${format} e enviada ao Cloudflare R2${savings}.`);
     } catch (error) {
-      setMessage(userFacingError(error));
+      setMessage(error instanceof ImageOptimizationError ? error.message : userFacingError(error));
       setIsError(true);
     } finally {
       setUploading(false);
@@ -88,10 +83,10 @@ export function ImageUploadField({
           data-testid={`control-${testId}`}
           className={`inline-flex w-fit cursor-pointer items-center rounded-full border border-border px-4 py-2.5 text-xs font-bold transition-colors hover:bg-muted ${disabled || uploading ? "pointer-events-none opacity-60" : ""}`}
         >
-          <span>{uploading ? "Enviando imagem…" : label}</span>
+          <span>{uploading ? "Preparando imagem…" : label}</span>
           <input
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,image/avif"
             disabled={disabled || uploading}
             onChange={handleFile}
             data-testid={`input-${testId}`}
@@ -101,7 +96,7 @@ export function ImageUploadField({
         </label>
         <span className="text-xs text-muted-foreground">ou arraste uma imagem até aqui</span>
       </div>
-      <p data-testid={`hint-${testId}`} className="text-xs text-muted-foreground">JPG, PNG ou WebP · até 8 MB · a imagem ficará pública.</p>
+      <p data-testid={`hint-${testId}`} className="text-xs text-muted-foreground">JPG, PNG, WebP ou AVIF · até 20 MB e 30 megapixels. O navegador compara WebP e AVIF e envia o menor arquivo, até 4 MiB. A imagem ficará pública.</p>
       {message && (
         <p
           role={isError ? "alert" : "status"}

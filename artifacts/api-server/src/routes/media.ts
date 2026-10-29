@@ -18,7 +18,7 @@ const supportedContentTypes = Object.keys(STORE_IMAGE_TYPES);
 const readImageBody: RequestHandler = (req, res, next) => {
   const contentType = req.header("content-type")?.split(";", 1)[0].trim().toLowerCase();
   if (!contentType || !supportedContentTypes.includes(contentType)) {
-    res.status(415).json({ error: "Envie uma imagem JPG, PNG ou WebP." });
+    res.status(415).json({ error: "Envie uma imagem convertida para WebP ou AVIF pelo formulário da loja." });
     return;
   }
 
@@ -32,7 +32,7 @@ const readImageBody: RequestHandler = (req, res, next) => {
       }
 
       if (typeof error === "object" && error !== null && "status" in error && error.status === 413) {
-        res.status(413).json({ error: "A imagem deve ter no máximo 8 MB." });
+        res.status(413).json({ error: "A imagem otimizada deve ter no máximo 4 MiB." });
         return;
       }
       next(error);
@@ -65,7 +65,7 @@ router.post(
     const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     const contentType = detectStoreImageType(req.header("content-type"), body);
     if (!contentType) {
-      res.status(400).json({ error: "O arquivo não corresponde a uma imagem JPG, PNG ou WebP válida." });
+      res.status(400).json({ error: "O arquivo não corresponde a uma imagem WebP ou AVIF válida." });
       return;
     }
 

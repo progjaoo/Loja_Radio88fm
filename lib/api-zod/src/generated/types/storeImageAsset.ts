@@ -12,7 +12,7 @@ export interface StoreImageAsset {
   contentType: StoreImageAssetContentType;
   /**
      * @minimum 1
-     * @maximum 8388608
+     * @maximum 4194304
      */
   byteSize: number;
 }

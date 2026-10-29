@@ -287,9 +287,8 @@ export type StoreImageAssetContentType = typeof StoreImageAssetContentType[keyof
 
 
 export const StoreImageAssetContentType = {
-  'image/jpeg': 'image/jpeg',
-  'image/png': 'image/png',
   'image/webp': 'image/webp',
+  'image/avif': 'image/avif',
 } as const;
 
 export interface StoreImageAsset {
@@ -297,7 +296,7 @@ export interface StoreImageAsset {
   contentType: StoreImageAssetContentType;
   /**
      * @minimum 1
-     * @maximum 8388608
+     * @maximum 4194304
      */
   byteSize: number;
 }

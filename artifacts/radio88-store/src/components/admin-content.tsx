@@ -136,7 +136,7 @@ function BannerEditor() {
       <aside className="rounded-2xl border border-border bg-muted/40 p-4 text-sm" aria-label="Padrão das artes do carrossel">
         <h4 className="font-bold">Conteúdo de demonstração para avaliação visual</h4>
         <p className="mt-2">O botão “Carregar demonstração” inclui uma arte cinza e um vídeo próprio de estrelas sobre fundo preto. O conteúdo fica somente como rascunho e não é publicado automaticamente.</p>
-        <p className="mt-2 text-xs text-muted-foreground">Envie a arte que tiver: não exigimos dimensões ou proporção específicas. O banner preenche a área em 2:1 no desktop e 4:5 no celular, recortando o centro; use uma imagem mobile separada quando a composição pedir outro enquadramento. JPG, PNG ou WebP até 8 MB. Vídeos MP4 H.264, sem áudio, até 15 segundos e 3,5 MiB.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Envie a arte que tiver: não exigimos dimensões ou proporção específicas. O banner preenche a área em 2:1 no desktop e 4:5 no celular, recortando o centro; use uma imagem mobile separada quando a composição pedir outro enquadramento. JPG, PNG, WebP ou AVIF até 20 MB e 30 megapixels; o navegador compara WebP e AVIF e envia o menor arquivo, até 4 MiB. Vídeos MP4 H.264, sem áudio, até 15 segundos e 3,5 MiB.</p>
       </aside>
       {form.slides.length === 0 && <div className="rounded-2xl border border-dashed border-border px-5 py-8 text-center">
         <p className="font-semibold">Nenhum destaque cadastrado</p>
@@ -200,7 +200,7 @@ function BannerEditor() {
         ))}
       </div>
       {form.slides.length > 0 && <section className="grid gap-3" aria-label="Prévia do carrossel"><div><h4 className="text-sm font-bold">Prévia local do rascunho</h4><p className="text-xs text-muted-foreground">A apresentação permanece privada até você ativá-la e salvar.</p></div><HomepageBannerPreview banner={form} /></section>}
-      <p className="text-xs text-muted-foreground">Envie imagens JPG, PNG ou WebP para o Cloudflare R2, ou informe os endereços diretamente. O carrossel ajusta a arte ao quadro e mantém o texto sobre a imagem. Imagens enviadas ficam públicas. No máximo 8 slides podem ser cadastrados.</p>
+      <p className="text-xs text-muted-foreground">Envie imagens JPG, PNG, WebP ou AVIF para o Cloudflare R2, ou informe os endereços diretamente. O navegador otimiza cada arquivo para WebP ou AVIF antes do envio; o carrossel ajusta a arte ao quadro e mantém o texto sobre a imagem. Imagens enviadas ficam públicas. No máximo 8 slides podem ser cadastrados.</p>
       {!canManage && <p className="text-xs text-muted-foreground">Acesso somente para consulta. Você não pode alterar os destaques.</p>}
       {canManage && <div className="banner-save-bar">
         <span className="flex-1 text-sm text-muted-foreground" aria-live="polite">{dirty ? 'Alterações não salvas' : 'Tudo salvo'}</span>

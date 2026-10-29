@@ -1,10 +1,20 @@
-export const MAX_STORE_IMAGE_BYTES = 8 * 1024 * 1024;
+// Keep the raw upload below Vercel Functions' 4.5 MB request payload limit.
+export const MAX_STORE_IMAGE_BYTES = 4 * 1024 * 1024;
 export const MAX_STORE_VIDEO_BYTES = Math.floor(3.5 * 1024 * 1024);
 
 export const STORE_IMAGE_TYPES = {
-  "image/jpeg": { extension: "jpg", signature: (bytes: Buffer) => bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff },
-  "image/png": { extension: "png", signature: (bytes: Buffer) => bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
   "image/webp": { extension: "webp", signature: (bytes: Buffer) => bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP" },
+  "image/avif": { extension: "avif", signature: (bytes: Buffer) => {
+    if (bytes.length < 16 || bytes.toString("ascii", 4, 8) !== "ftyp") return false;
+    const boxSize = bytes.readUInt32BE(0);
+    if (boxSize < 16 || boxSize > bytes.length) return false;
+    const brand = (offset: number) => bytes.toString("ascii", offset, offset + 4);
+    if (brand(8) === "avif" || brand(8) === "avis") return true;
+    for (let offset = 16; offset + 4 <= boxSize; offset += 4) {
+      if (brand(offset) === "avif" || brand(offset) === "avis") return true;
+    }
+    return false;
+  } },
 } as const;
 
 export type StoreImageContentType = keyof typeof STORE_IMAGE_TYPES;
