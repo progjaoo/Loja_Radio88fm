@@ -1479,7 +1479,7 @@ h1.catalog-wordmark { font-size: clamp(64px, 8vw, 96px); }
   .catalog-admin .entity-list article,.product-gallery-thumbnails button { transition:none; }
 }
 
-.hero88 { --hero-control-size:48px; --hero-control-inset:24px; --hero-control-gap:8px; --hero-header-height:68px; --hero-overlay:rgb(0 0 0 / 40%); --hero-on-media:#fff; --hero-dot-muted:rgb(255 255 255 / 45%); width:100%; max-width:none; margin-inline:auto; padding-block:0; }
+.hero88 { --hero-control-size:48px; --hero-control-inset:24px; --hero-control-gap:8px; --hero-header-height:100px; --hero-overlay:rgb(0 0 0 / 40%); --hero-on-media:#fff; --hero-dot-muted:rgb(255 255 255 / 45%); width:100%; max-width:none; margin-inline:auto; padding-block:0; }
 .hero88-stage { position:relative; }
 .hero88-viewport { overflow: hidden; }
 .hero88-track { display: flex; touch-action: pan-y pinch-zoom; }
