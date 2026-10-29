@@ -91,9 +91,9 @@ function Hero({ layout, bannerOverride, preview = false }: { layout: HomepageLay
   }, [activeSlide?.id]);
   useEffect(() => {
     if (!api || !showCarousel || slides.length <= 1 || paused || reducedMotion || activeIsVideo) return;
-    const timer = window.setTimeout(() => api.scrollNext(), Math.min(15_000, Math.max(3_000, activeSlide?.imageDurationMs ?? 6_000)));
+    const timer = window.setTimeout(() => api.scrollNext(), 6_000);
     return () => window.clearTimeout(timer);
-  }, [activeIsVideo, activeSlide?.id, activeSlide?.imageDurationMs, api, paused, reducedMotion, showCarousel, slides.length]);
+  }, [activeIsVideo, activeSlide?.id, api, paused, reducedMotion, showCarousel, slides.length]);
   useEffect(() => {
     for (const [id, video] of videoRefs.current) {
       if (id !== activeSlide?.id || !activeIsVideo) { video.pause(); continue; }
@@ -157,12 +157,12 @@ function Hero({ layout, bannerOverride, preview = false }: { layout: HomepageLay
     return (
       <div className="hero88-slide" role="group" aria-roledescription="slide" aria-label={`${index + 1} de ${slides.length || 1}`} key={slide.id}>
         <article className={`hero88-editorial-card${hasCopy ? ' has-copy' : ''}`}>
-          <div className={`hero88-card${slide.mobileImageUrl || slide.mobileVideoUrl || slide.mobilePosterUrl ? ' has-mobile-image' : ''}`}><BannerCta href={slide.ctaHref} className="hero88-media-link">{media}</BannerCta>{playButton}</div>
+          <div className={`hero88-card${hasCopy ? ' has-copy' : ''}${slide.mobileImageUrl || slide.mobileVideoUrl || slide.mobilePosterUrl ? ' has-mobile-image' : ''}`}><BannerCta href={slide.ctaHref} className="hero88-media-link">{media}</BannerCta>
           {hasCopy && <div className="hero88-content">
             {slide.title?.trim() && <h2>{slide.title}</h2>}
             {slide.description?.trim() && <p>{slide.description}</p>}
             {slide.ctaLabel?.trim() && slide.ctaHref && <SmartLink href={slide.ctaHref} className="hero88-content-link" testId={`link-banner-copy-cta-${slide.id}`}>{slide.ctaLabel}<ArrowRight size={16} /></SmartLink>}
-          </div>}
+          </div>}{playButton}</div>
         </article>
       </div>
     );

@@ -1,7 +1,7 @@
 import { userFacingError } from '@/lib/user-facing-errors';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useGetHomepageBanner, useUpdateHomepageBanner, getGetHomepageBannerQueryKey } from '@workspace/api-client-react';
+import { useGetHomepageBanner, useUpdateHomepageBanner, getGetHomepageBannerQueryKey, useListProducts } from '@workspace/api-client-react';
 import type { HomepageBanner, HomepageBannerSlide, HomepageBannerUpdate } from '@workspace/api-client-react';
 import { ErrorState, Loading, Notice } from '@/components/feedback';
 import { ImageUploadField } from '@/components/image-upload';
@@ -12,15 +12,14 @@ import { HomepageLayoutEditor } from '@/components/homepage-layout-editor';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 
 const errText = userFacingError;
-const desktopBannerRequirements = { width: 1920, height: 960, minWidth: 960, minHeight: 480 };
-const mobileBannerRequirements = { width: 960, height: 1200, minWidth: 720, minHeight: 900 };
 const isHttp = (v: string) => {
   try { const u = new URL(v); return ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password; }
   catch { return false; }
 };
 type BannerForm = { enabled: boolean; slides: HomepageBannerSlide[] };
 const blankSlide = (): HomepageBannerSlide => ({ id: crypto.randomUUID(), enabled: false, title: '', description: '', imageUrl: null, mobileImageUrl: null, alt: '', ctaLabel: '', ctaHref: null, mediaType: 'image', videoUrl: null, mobileVideoUrl: null, posterUrl: null, mobilePosterUrl: null, imageDurationMs: 6000 });
-const toBannerForm = (banner: HomepageBanner): BannerForm => ({ enabled: banner.enabled, slides: (banner.slides ?? []).map(slide => ({ mediaType: 'image', videoUrl: null, mobileVideoUrl: null, posterUrl: null, mobilePosterUrl: null, imageDurationMs: 6000, ...slide })) });
+const toBannerForm = (banner: HomepageBanner): BannerForm => ({ enabled: banner.enabled, slides: (banner.slides ?? []).map(slide => ({ mediaType: 'image', videoUrl: null, mobileVideoUrl: null, posterUrl: null, mobilePosterUrl: null, ...slide, imageDurationMs: 6000 })) });
+const bannerProductId = (href: string | null) => href?.match(/^\/product\/([^/?#]+)/)?.[1] ?? '';
 const demoSlides = (): HomepageBannerSlide[] => {
   const asset = (name: string) => new URL(`/demo/homepage/${name}`, window.location.origin).toString();
   return [
@@ -37,7 +36,6 @@ const validateBanner = (form: BannerForm) => {
     const key = (field: string) => `${slide.id}.${field}`;
     const urls = ['imageUrl', 'mobileImageUrl', 'videoUrl', 'mobileVideoUrl', 'posterUrl', 'mobilePosterUrl'] as const;
     for (const field of urls) if (slide[field]?.trim() && !isHttp(slide[field]!.trim())) errors[key(field)] = 'Use um endereço http:// ou https://.';
-    if ((slide.imageDurationMs ?? 6000) < 3000 || (slide.imageDurationMs ?? 6000) > 15000) errors[key('imageDurationMs')] = 'Escolha um tempo de 3 a 15 segundos.';
     if (form.enabled && slide.enabled && (slide.mediaType ?? 'image') === 'image' && !slide.imageUrl?.trim()) errors[key('imageUrl')] = 'Informe uma imagem desktop para este destaque ativo.';
     if (form.enabled && slide.enabled && slide.mediaType === 'video' && !slide.videoUrl?.trim()) errors[key('videoUrl')] = 'Envie o vídeo desktop deste destaque.';
     if (form.enabled && slide.enabled && slide.mediaType === 'video' && !slide.posterUrl?.trim()) errors[key('posterUrl')] = 'Informe uma imagem de capa para este vídeo.';
@@ -50,6 +48,7 @@ const validateBanner = (form: BannerForm) => {
 
 function BannerEditor() {
   const q = useGetHomepageBanner({ query: { queryKey: getGetHomepageBannerQueryKey() } });
+  const products = useListProducts(undefined, { query: { queryKey: ['/api/products'], staleTime: 30_000 } });
   const qc = useQueryClient();
   const save = useUpdateHomepageBanner();
   const canManage = useCan('content:manage');
@@ -97,7 +96,7 @@ function BannerEditor() {
         mobileVideoUrl: slide.mobileVideoUrl?.trim() || null,
         posterUrl: slide.posterUrl?.trim() || null,
         mobilePosterUrl: slide.mobilePosterUrl?.trim() || null,
-        imageDurationMs: slide.imageDurationMs ?? 6000,
+        imageDurationMs: 6000,
         alt: slide.alt.trim(),
         ctaLabel: slide.ctaLabel.trim(),
         ctaHref: slide.ctaHref?.trim() || null,
@@ -115,7 +114,7 @@ function BannerEditor() {
   };
   const fieldError = (id: string, field: string) => showErrors ? errors[`${id}.${field}`] : undefined;
   return (
-    <form onSubmit={submit} className="grid gap-4 rounded-[28px] bg-card p-5 shadow-soft md:p-6" noValidate data-testid="form-homepage-banners">
+    <form onSubmit={submit} className="grid gap-4 rounded-[28px] bg-card p-4 shadow-soft md:gap-5 md:p-6" noValidate data-testid="form-homepage-banners">
       <label className="flex items-start gap-3 rounded-2xl bg-muted/60 p-4 text-sm">
         <input type="checkbox" className="mt-0.5 accent-black" disabled={disabled} checked={form.enabled} onChange={event => change({ ...form, enabled: event.target.checked })} data-testid="checkbox-banner-enabled" />
         <span><b className="block">Exibir destaques na página inicial</b><span className="mt-1 block text-xs text-muted-foreground">Quando não houver destaque ativo, a apresentação padrão da Rádio 88 FM continua visível.</span></span>
@@ -128,7 +127,7 @@ function BannerEditor() {
       <aside className="rounded-2xl border border-border bg-muted/40 p-4 text-sm" aria-label="Padrão das artes do carrossel">
         <h4 className="font-bold">Conteúdo de demonstração para avaliação visual</h4>
         <p className="mt-2">O botão “Carregar demonstração” inclui uma arte cinza e um vídeo próprio de estrelas sobre fundo preto. O conteúdo fica somente como rascunho e não é publicado automaticamente.</p>
-        <p className="mt-2 text-xs text-muted-foreground">Artes: desktop 1920 × 960 px (2:1) e mobile 960 × 1200 px (4:5). Imagens JPG, PNG ou WebP até 8 MB. Vídeos MP4 H.264, sem áudio, até 15 segundos e 3,5 MiB. Mantenha textos e logos a pelo menos 5% das bordas.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Envie a arte que tiver: não exigimos dimensões ou proporção específicas. O banner preenche a área em 2:1 no desktop e 4:5 no celular, recortando o centro; use uma imagem mobile separada quando a composição pedir outro enquadramento. JPG, PNG ou WebP até 8 MB. Vídeos MP4 H.264, sem áudio, até 15 segundos e 3,5 MiB.</p>
       </aside>
       {form.slides.length === 0 && <div className="rounded-2xl border border-dashed border-border px-5 py-8 text-center">
         <p className="font-semibold">Nenhum destaque cadastrado</p>
@@ -150,41 +149,41 @@ function BannerEditor() {
             <div className="grid gap-4 p-4 md:p-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block text-xs font-bold">Tipo de mídia<select className="field mt-1.5" disabled={disabled} value={slide.mediaType ?? 'image'} onChange={event => patchSlide(slide.id, { mediaType: event.target.value as 'image' | 'video' })} data-testid={`select-slide-media-${slide.id}`}><option value="image">Imagem</option><option value="video">Vídeo (MP4)</option></select></label>
-                <label className="block text-xs font-bold">Título editorial (opcional)<input className="field mt-1.5" maxLength={120} disabled={disabled} value={slide.title} onChange={event => patchSlide(slide.id, { title: event.target.value })} placeholder="Ex.: A Rádio 88 acompanha você" data-testid={`input-slide-title-${slide.id}`} /><span className="mt-1 block font-normal text-muted-foreground">Aparece abaixo da mídia. Não é incorporado sobre a arte.</span></label>
+                <label className="block text-xs font-bold">Título editorial (opcional)<input className="field mt-1.5" maxLength={120} disabled={disabled} value={slide.title} onChange={event => patchSlide(slide.id, { title: event.target.value })} placeholder="Ex.: A Rádio 88 acompanha você" data-testid={`input-slide-title-${slide.id}`} /><span className="mt-1 block font-normal text-muted-foreground">Aparece sobre a imagem, junto do texto e do botão.</span></label>
                 <label className="block text-xs font-bold">Texto de apoio (opcional)<textarea className="field mt-1.5 min-h-24 resize-y" maxLength={400} disabled={disabled} value={slide.description} onChange={event => patchSlide(slide.id, { description: event.target.value })} placeholder="Uma frase curta sobre esta campanha" data-testid={`input-slide-description-${slide.id}`} /></label>
               </div>
               {fieldError(slide.id, 'ctaLabel') && <p className="-mt-2 text-xs font-normal text-destructive" role="alert">{fieldError(slide.id, 'ctaLabel')}</p>}
               <div className="grid gap-4 md:grid-cols-2">
-                <label className="block text-xs font-bold">Texto do botão (opcional)<input className="field mt-1.5" maxLength={60} disabled={disabled} value={slide.ctaLabel} onChange={event => patchSlide(slide.id, { ctaLabel: event.target.value })} placeholder="Ver a coleção" data-testid={`input-slide-cta-label-${slide.id}`} /></label>
-                <label className="block text-xs font-bold">Destino do botão ou da imagem (opcional)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.ctaHref ?? ''} onChange={event => patchSlide(slide.id, { ctaHref: event.target.value || null })} placeholder="/?categoryId=…" data-testid={`input-slide-cta-href-${slide.id}`} /><span className="mt-1 block font-normal text-muted-foreground">Sem texto de botão, o destino continua sendo aplicado à imagem como antes.</span>{fieldError(slide.id, 'ctaHref') && <span className="mt-1 block font-normal text-destructive">{fieldError(slide.id, 'ctaHref')}</span>}</label>
+                <label className="block text-xs font-bold">Produto do botão (opcional)<select className="field mt-1.5" disabled={disabled || products.isLoading} value={bannerProductId(slide.ctaHref)} onChange={event => { const productId = event.target.value; patchSlide(slide.id, { ctaHref: productId ? `/product/${productId}` : null, ctaLabel: productId && !slide.ctaLabel.trim() ? 'Comprar' : slide.ctaLabel }); }} data-testid={`select-slide-product-${slide.id}`}><option value="">Selecione um produto</option>{products.data?.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}</select><span className="mt-1 block font-normal text-muted-foreground">O botão leva diretamente à página do produto escolhido.</span></label>
+                <label className="block text-xs font-bold">Texto do botão (opcional)<input className="field mt-1.5" maxLength={60} disabled={disabled} value={slide.ctaLabel} onChange={event => patchSlide(slide.id, { ctaLabel: event.target.value })} placeholder="Comprar" data-testid={`input-slide-cta-label-${slide.id}`} /></label>
+                <label className="block text-xs font-bold md:col-span-2">Destino personalizado (opcional)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.ctaHref ?? ''} onChange={event => patchSlide(slide.id, { ctaHref: event.target.value || null })} placeholder="/caminho interno ou https://…" data-testid={`input-slide-cta-href-${slide.id}`} /><span className="mt-1 block font-normal text-muted-foreground">Use este campo para um destino que não seja um produto. Sem texto de botão, o destino continua aplicado à imagem.</span>{fieldError(slide.id, 'ctaHref') && <span className="mt-1 block font-normal text-destructive">{fieldError(slide.id, 'ctaHref')}</span>}</label>
               </div>
               <label className="block text-xs font-bold">Texto alternativo do conteúdo<input className="field mt-1.5" maxLength={240} disabled={disabled} value={slide.alt} onChange={event => patchSlide(slide.id, { alt: event.target.value })} data-testid={`input-slide-alt-${slide.id}`} />{fieldError(slide.id, 'alt') && <span className="mt-1 block font-normal text-destructive">{fieldError(slide.id, 'alt')}</span>}</label>
               {(slide.mediaType ?? 'image') === 'image' ? <div className="grid gap-4 md:grid-cols-2">
-                <div><label className="block text-xs font-bold">Imagem desktop (URL)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.imageUrl ?? ''} onChange={event => patchSlide(slide.id, { imageUrl: event.target.value || null })} placeholder="https://…" data-testid={`input-slide-image-${slide.id}`} /></label>{fieldError(slide.id, 'imageUrl') && <span className="mt-1 block text-xs text-destructive">{fieldError(slide.id, 'imageUrl')}</span>}<ImageUploadField value={slide.imageUrl ?? ''} imageRequirements={desktopBannerRequirements} onChange={imageUrl => patchSlide(slide.id, { imageUrl: imageUrl || null })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-desktop`]: uploading }))} disabled={disabled} label={`Enviar imagem desktop ${index + 1}`} /></div>
-                <div><label className="block text-xs font-bold">Imagem mobile (URL, opcional)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.mobileImageUrl ?? ''} onChange={event => patchSlide(slide.id, { mobileImageUrl: event.target.value || null })} placeholder="https://…" data-testid={`input-slide-mobile-image-${slide.id}`} /></label>{fieldError(slide.id, 'mobileImageUrl') && <span className="mt-1 block text-xs text-destructive">{fieldError(slide.id, 'mobileImageUrl')}</span>}<ImageUploadField value={slide.mobileImageUrl ?? ''} imageRequirements={mobileBannerRequirements} onChange={mobileImageUrl => patchSlide(slide.id, { mobileImageUrl: mobileImageUrl || null })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-mobile`]: uploading }))} disabled={disabled} label={`Enviar imagem mobile ${index + 1}`} /></div>
+                <div><label className="block text-xs font-bold">Imagem desktop (URL)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.imageUrl ?? ''} onChange={event => patchSlide(slide.id, { imageUrl: event.target.value || null })} placeholder="https://…" data-testid={`input-slide-image-${slide.id}`} /></label>{fieldError(slide.id, 'imageUrl') && <span className="mt-1 block text-xs text-destructive">{fieldError(slide.id, 'imageUrl')}</span>}<ImageUploadField value={slide.imageUrl ?? ''} onChange={imageUrl => patchSlide(slide.id, { imageUrl: imageUrl || null })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-desktop`]: uploading }))} disabled={disabled} label={`Enviar imagem desktop ${index + 1}`} /></div>
+                <div><label className="block text-xs font-bold">Imagem mobile (URL, opcional)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.mobileImageUrl ?? ''} onChange={event => patchSlide(slide.id, { mobileImageUrl: event.target.value || null })} placeholder="https://…" data-testid={`input-slide-mobile-image-${slide.id}`} /></label>{fieldError(slide.id, 'mobileImageUrl') && <span className="mt-1 block text-xs text-destructive">{fieldError(slide.id, 'mobileImageUrl')}</span>}<ImageUploadField value={slide.mobileImageUrl ?? ''} onChange={mobileImageUrl => patchSlide(slide.id, { mobileImageUrl: mobileImageUrl || null })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-mobile`]: uploading }))} disabled={disabled} label={`Enviar imagem mobile ${index + 1}`} /></div>
               </div> : <div className="grid gap-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div><b className="text-xs">Vídeo desktop</b>{fieldError(slide.id, 'videoUrl') && <span className="mt-1 block text-xs text-destructive">{fieldError(slide.id, 'videoUrl')}</span>}<VideoUploadField value={slide.videoUrl ?? ''} onChange={videoUrl => patchSlide(slide.id, { videoUrl })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-video`]: uploading }))} disabled={disabled} label={`Enviar vídeo desktop ${index + 1}`} /></div>
                   <div><b className="text-xs">Vídeo mobile (opcional)</b><VideoUploadField value={slide.mobileVideoUrl ?? ''} onChange={mobileVideoUrl => patchSlide(slide.id, { mobileVideoUrl: mobileVideoUrl || null })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-mobile-video`]: uploading }))} disabled={disabled} label={`Enviar vídeo mobile ${index + 1}`} /></div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div><label className="block text-xs font-bold">Poster desktop (URL)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.posterUrl ?? ''} onChange={event => patchSlide(slide.id, { posterUrl: event.target.value || null })} placeholder="https://…" data-testid={`input-slide-poster-${slide.id}`} /></label>{fieldError(slide.id, 'posterUrl') && <span className="text-xs text-destructive">{fieldError(slide.id, 'posterUrl')}</span>}<ImageUploadField value={slide.posterUrl ?? ''} imageRequirements={desktopBannerRequirements} onChange={posterUrl => patchSlide(slide.id, { posterUrl: posterUrl || null })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-poster`]: uploading }))} disabled={disabled} label={`Enviar poster desktop ${index + 1}`} /></div>
-                  <div><label className="block text-xs font-bold">Poster mobile (URL, opcional)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.mobilePosterUrl ?? ''} onChange={event => patchSlide(slide.id, { mobilePosterUrl: event.target.value || null })} placeholder="https://…" data-testid={`input-slide-mobile-poster-${slide.id}`} /></label><ImageUploadField value={slide.mobilePosterUrl ?? ''} imageRequirements={mobileBannerRequirements} onChange={mobilePosterUrl => patchSlide(slide.id, { mobilePosterUrl: mobilePosterUrl || null })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-mobile-poster`]: uploading }))} disabled={disabled} label={`Enviar poster mobile ${index + 1}`} /></div>
+                  <div><label className="block text-xs font-bold">Poster desktop (URL)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.posterUrl ?? ''} onChange={event => patchSlide(slide.id, { posterUrl: event.target.value || null })} placeholder="https://…" data-testid={`input-slide-poster-${slide.id}`} /></label>{fieldError(slide.id, 'posterUrl') && <span className="text-xs text-destructive">{fieldError(slide.id, 'posterUrl')}</span>}<ImageUploadField value={slide.posterUrl ?? ''} onChange={posterUrl => patchSlide(slide.id, { posterUrl: posterUrl || null })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-poster`]: uploading }))} disabled={disabled} label={`Enviar poster desktop ${index + 1}`} /></div>
+                  <div><label className="block text-xs font-bold">Poster mobile (URL, opcional)<input className="field mt-1.5" maxLength={2048} disabled={disabled} value={slide.mobilePosterUrl ?? ''} onChange={event => patchSlide(slide.id, { mobilePosterUrl: event.target.value || null })} placeholder="https://…" data-testid={`input-slide-mobile-poster-${slide.id}`} /></label><ImageUploadField value={slide.mobilePosterUrl ?? ''} onChange={mobilePosterUrl => patchSlide(slide.id, { mobilePosterUrl: mobilePosterUrl || null })} onUploadingChange={uploading => setPendingUploads(current => ({ ...current, [`${slide.id}-mobile-poster`]: uploading }))} disabled={disabled} label={`Enviar poster mobile ${index + 1}`} /></div>
                 </div>
               </div>}
-              {(slide.mediaType ?? 'image') === 'image' && <label className="block max-w-xs text-xs font-bold">Duração da imagem (segundos)<input className="field mt-1.5" type="number" min={3} max={15} step={1} disabled={disabled} value={(slide.imageDurationMs ?? 6000) / 1000} onChange={event => patchSlide(slide.id, { imageDurationMs: Number(event.target.value) * 1000 })} data-testid={`input-slide-duration-${slide.id}`} />{fieldError(slide.id, 'imageDurationMs') && <span className="mt-1 block font-normal text-destructive">{fieldError(slide.id, 'imageDurationMs')}</span>}</label>}
               {(slide.imageUrl || slide.mobileImageUrl) && (slide.mediaType ?? 'image') === 'image' && <div className="grid gap-3 sm:grid-cols-2">
-                {slide.imageUrl && isHttp(slide.imageUrl) && <figure><figcaption className="eyebrow mb-1">Prévia desktop · 16:9 + texto abaixo</figcaption><div className="overflow-hidden rounded-[18px] border border-border bg-card"><img src={slide.imageUrl} alt={slide.alt || 'Prévia desktop'} className="aspect-video w-full bg-muted object-cover" />{(slide.title || slide.description || (slide.ctaLabel && slide.ctaHref)) && <div className="grid gap-2 p-4">{slide.title && <strong>{slide.title}</strong>}{slide.description && <span className="text-sm text-muted-foreground">{slide.description}</span>}{slide.ctaLabel && slide.ctaHref && <span className="w-fit rounded-full bg-primary px-3 py-2 text-xs text-primary-foreground">{slide.ctaLabel} →</span>}</div>}</div></figure>}
-                {slide.mobileImageUrl && isHttp(slide.mobileImageUrl) && <figure><figcaption className="eyebrow mb-1">Prévia mobile · 16:9</figcaption><img src={slide.mobileImageUrl} alt={slide.alt || 'Prévia mobile'} className="aspect-video w-full rounded-[18px] bg-muted object-cover" /></figure>}
+                {slide.imageUrl && isHttp(slide.imageUrl) && <figure><figcaption className="eyebrow mb-1">Imagem desktop · recorte 2:1</figcaption><img src={slide.imageUrl} alt={slide.alt || 'Prévia desktop'} className="aspect-[2/1] w-full rounded-[18px] bg-muted object-cover" />{(slide.title || slide.description || (slide.ctaLabel && slide.ctaHref)) && <p className="mt-1 text-xs text-muted-foreground">O texto, a descrição e o botão aparecem sobre esta imagem.</p>}</figure>}
+                {slide.mobileImageUrl && isHttp(slide.mobileImageUrl) && <figure><figcaption className="eyebrow mb-1">Imagem mobile · recorte 4:5</figcaption><img src={slide.mobileImageUrl} alt={slide.alt || 'Prévia mobile'} className="aspect-[4/5] w-full rounded-[18px] bg-muted object-cover" /></figure>}
               </div>}
             </div>
           </article>
         ))}
       </div>
       {form.slides.length > 0 && <section className="grid gap-3" aria-label="Prévia do carrossel"><div><h4 className="text-sm font-bold">Prévia local do rascunho</h4><p className="text-xs text-muted-foreground">A apresentação permanece privada até você ativá-la e salvar.</p></div><HomepageBannerPreview banner={form} /></section>}
-      <p className="text-xs text-muted-foreground">Envie imagens JPG, PNG ou WebP para o Cloudflare R2, ou informe os endereços diretamente. As imagens enviadas ficam públicas. No máximo 8 slides podem ser cadastrados.</p>
+      <p className="text-xs text-muted-foreground">Envie imagens JPG, PNG ou WebP para o Cloudflare R2, ou informe os endereços diretamente. O carrossel ajusta a arte ao quadro e mantém o texto sobre a imagem. Imagens enviadas ficam públicas. No máximo 8 slides podem ser cadastrados.</p>
       {!canManage && <p className="text-xs text-muted-foreground">Acesso somente para consulta. Você não pode alterar os destaques.</p>}
-      {canManage && <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+      {canManage && <div className="banner-save-bar">
         <span className="flex-1 text-sm text-muted-foreground" aria-live="polite">{dirty ? 'Alterações não salvas' : 'Tudo salvo'}</span>
         <button type="button" className="button button-outline" disabled={disabled || !dirty} onClick={() => { setForm(toBannerForm(q.data!)); setShowErrors(false); setFeedback(null); }} data-testid="button-cancel-banner">Descartar</button>
         <button className="button" disabled={disabled || uploadPending || !dirty} data-testid="button-save-banner">{save.isPending ? 'Salvando…' : uploadPending ? 'Aguarde o envio…' : 'Salvar destaques'}</button>

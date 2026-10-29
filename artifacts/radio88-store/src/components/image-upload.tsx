@@ -5,26 +5,18 @@ import { uploadStoreImage } from "@workspace/api-client-react";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-function getAspectRatioLabel(width: number, height: number): string {
-  const greatestCommonDivisor = (a: number, b: number): number => b === 0 ? a : greatestCommonDivisor(b, a % b);
-  const divisor = greatestCommonDivisor(width, height);
-  return `${width / divisor}:${height / divisor}`;
-}
-
 export function ImageUploadField({
   value,
   onChange,
   onUploadingChange,
   disabled = false,
   label = "Enviar uma imagem para o R2",
-  imageRequirements,
 }: {
   value: string;
   onChange: (url: string) => void;
   onUploadingChange?: (uploading: boolean) => void;
   disabled?: boolean;
   label?: string;
-  imageRequirements?: { width: number; height: number; minWidth: number; minHeight: number };
 }) {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
@@ -50,31 +42,6 @@ export function ImageUploadField({
     setUploading(true);
     onUploadingChange?.(true);
     try {
-      if (imageRequirements) {
-        const objectUrl = URL.createObjectURL(file);
-        try {
-          const image = new Image();
-          await new Promise<void>((resolve, reject) => {
-            image.onload = () => resolve();
-            image.onerror = () => reject(new Error("Não foi possível ler a imagem. Escolha outro arquivo."));
-            image.src = objectUrl;
-          });
-          const { width, height, minWidth, minHeight } = imageRequirements;
-          if (image.naturalWidth < minWidth || image.naturalHeight < minHeight) {
-            setMessage(`A imagem tem ${image.naturalWidth} × ${image.naturalHeight} px. Use pelo menos ${minWidth} × ${minHeight} px.`);
-            setIsError(true);
-            return;
-          }
-          // Allow only pixel-rounding differences, not a visibly different aspect ratio.
-          if (Math.abs(image.naturalHeight - image.naturalWidth * height / width) > 1) {
-            setMessage(`A imagem tem ${image.naturalWidth} × ${image.naturalHeight} px. Para o carrossel, envie uma arte 16:9, como ${width} × ${height} px, sem margens brancas.`);
-            setIsError(true);
-            return;
-          }
-        } finally {
-          URL.revokeObjectURL(objectUrl);
-        }
-      }
       const asset = await uploadStoreImage(file, {
         headers: { "Content-Type": file.type },
       });
@@ -135,7 +102,6 @@ export function ImageUploadField({
         <span className="text-xs text-muted-foreground">ou arraste uma imagem até aqui</span>
       </div>
       <p data-testid={`hint-${testId}`} className="text-xs text-muted-foreground">JPG, PNG ou WebP · até 8 MB · a imagem ficará pública.</p>
-      {imageRequirements && <p className="text-xs text-muted-foreground">Padrão do carrossel: {imageRequirements.width} × {imageRequirements.height} px ({getAspectRatioLabel(imageRequirements.width, imageRequirements.height)}). Mínimo: {imageRequirements.minWidth} × {imageRequirements.minHeight} px na mesma proporção. Arquivos fora do padrão não serão enviados.</p>}
       {message && (
         <p
           role={isError ? "alert" : "status"}
